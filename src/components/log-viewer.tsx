@@ -1,7 +1,7 @@
 // src/components/log-viewer.tsx
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
+import React, { useEffect, useState, useRef } from 'react'
 
 interface LogEntry {
   id: string
@@ -96,9 +96,8 @@ export function LogViewer({ filter }: LogViewerProps) {
           </thead>
           <tbody>
             {logs.map((log) => (
-              <>
+              <React.Fragment key={log.id}>
                 <tr
-                  key={log.id}
                   onClick={() => setExpandedId(expandedId === log.id ? null : log.id)}
                   className="cursor-pointer border-b hover:bg-muted/50"
                 >
@@ -136,7 +135,7 @@ export function LogViewer({ filter }: LogViewerProps) {
                     </td>
                   </tr>
                 )}
-              </>
+              </React.Fragment>
             ))}
           </tbody>
         </table>

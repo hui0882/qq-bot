@@ -185,6 +185,7 @@ export interface OB11ActionResponse {
 export interface PlatformConfig {
   ws: {
     url: string
+    token: string
     reconnect: boolean
     reconnectInterval: number
     maxReconnectInterval: number

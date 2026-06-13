@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react'
 interface Config {
   ws: {
     url: string
+    token: string
     reconnect: boolean
     reconnectInterval: number
     maxReconnectInterval: number
@@ -106,6 +107,17 @@ export default function SettingsPage() {
                 测试连接
               </button>
             </div>
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium">WS Token (access_token)</label>
+            <input
+              type="text"
+              value={config.ws.token || ''}
+              onChange={(e) => setConfig({ ...config, ws: { ...config.ws, token: e.target.value } })}
+              placeholder="留空表示不需要认证"
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 font-mono text-sm"
+            />
+            <p className="mt-1 text-xs text-muted-foreground">NapCat WebSocket 的 access_token，连接时作为查询参数传递</p>
           </div>
           <div className="flex items-center gap-4">
             <label className="flex items-center gap-2 text-sm">

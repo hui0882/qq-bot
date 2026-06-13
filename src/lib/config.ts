@@ -8,6 +8,7 @@ const CONFIG_PATH = join(process.cwd(), 'data', 'config.json')
 const DEFAULT_CONFIG: PlatformConfig = {
   ws: {
     url: 'ws://115.190.250.31:3001',
+    token: '',
     reconnect: true,
     reconnectInterval: 5000,
     maxReconnectInterval: 30000,
