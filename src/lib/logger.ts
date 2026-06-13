@@ -121,6 +121,35 @@ class Logger {
     return full
   }
 
+  logOutgoingMessage(params: {
+    userId?: string
+    groupId?: string
+    messageType: string
+    content: string
+    echo: string
+  }): LogEntry {
+    const full = this.add({
+      type: 'event',
+      direction: 'outgoing',
+      action: 'message',
+      echo: params.echo,
+      data: {
+        post_type: 'message',
+        message_type: params.messageType,
+        user_id: params.userId ? Number(params.userId) : undefined,
+        group_id: params.groupId ? Number(params.groupId) : undefined,
+        raw_message: params.content,
+        message: [{ type: 'text', data: { text: params.content } }],
+        sender: { user_id: 0, nickname: '我' },
+      },
+    })
+    // Also notify message event listeners
+    for (const listener of this.messageEventListeners) {
+      listener(full)
+    }
+    return full
+  }
+
   logSystem(message: string, data?: unknown): LogEntry {
     // Skip noisy WS received/system logs from main buffer
     if (message === 'WS received') {

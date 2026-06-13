@@ -1,6 +1,7 @@
 // src/app/api/ws/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { napcatApi } from '@/lib/napcat-api'
+import { logger } from '@/lib/logger'
 import { validateAuth } from '@/lib/auth'
 
 export async function POST(request: NextRequest) {
@@ -14,6 +15,29 @@ export async function POST(request: NextRequest) {
 
     if (!action) {
       return NextResponse.json({ success: false, message: 'action is required' }, { status: 400 })
+    }
+
+    // Log outgoing message for send_msg action
+    if (action === 'send_msg' && params) {
+      const message = params.message as Array<Record<string, unknown>> | string | undefined
+      let textContent = ''
+      if (typeof message === 'string') {
+        textContent = message
+      } else if (Array.isArray(message)) {
+        textContent = message
+          .filter((m) => m.type === 'text')
+          .map((m) => (m.data as Record<string, unknown>)?.text as string)
+          .join('')
+      }
+      if (textContent) {
+        logger.logOutgoingMessage({
+          userId: params.user_id as string,
+          groupId: params.group_id as string,
+          messageType: (params.message_type as string) || 'private',
+          content: textContent,
+          echo: '',
+        })
+      }
     }
 
     const result = await napcatApi.sendAction(action, params || {})

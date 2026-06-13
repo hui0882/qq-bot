@@ -12,7 +12,7 @@ export async function GET() {
   const allLogs = logger.getLogs({ type: 'event', limit: 2000 })
   const messageEvents = allLogs.filter((l) => l.action === 'message')
 
-  // Group by user
+  // Group by user (the "other" person in the conversation)
   const userMap = new Map<number, {
     userId: number
     nickname: string
@@ -26,6 +26,7 @@ export async function GET() {
       rawMessage: string
       messageType: string
       groupId: number | null
+      direction: 'incoming' | 'outgoing'
     }>
     lastMessage: string
     lastTimestamp: number
@@ -38,8 +39,12 @@ export async function GET() {
     const userId = data.user_id as number
     const message = data.message as Array<Record<string, unknown>> | undefined
     const rawMessage = data.raw_message as string || ''
+    const direction = entry.direction || 'incoming'
 
     if (!userId) continue
+
+    // For outgoing messages, skip if user_id is 0 (self)
+    if (direction === 'outgoing' && userId === 0) continue
 
     // Extract text content from message segments
     let textContent = rawMessage
@@ -52,8 +57,12 @@ export async function GET() {
 
     const existing = userMap.get(userId)
     const groupId = data.group_id as number | null || null
-    const nickname = (sender?.nickname as string) || `User ${userId}`
-    const card = (sender?.card as string) || ''
+    const nickname = direction === 'incoming'
+      ? ((sender?.nickname as string) || `User ${userId}`)
+      : '我'
+    const card = direction === 'incoming'
+      ? ((sender?.card as string) || '')
+      : ''
     const groupName = (data.group_name as string) || ''
 
     if (existing) {
@@ -64,18 +73,21 @@ export async function GET() {
         rawMessage,
         messageType: data.message_type as string || 'unknown',
         groupId,
+        direction,
       })
       if (entry.timestamp > existing.lastTimestamp) {
-        existing.lastMessage = textContent
+        existing.lastMessage = direction === 'outgoing' ? `我: ${textContent}` : textContent
         existing.lastTimestamp = entry.timestamp
-        existing.nickname = nickname
-        existing.card = card
+        if (direction === 'incoming') {
+          existing.nickname = nickname
+          existing.card = card
+        }
       }
       existing.count++
     } else {
       userMap.set(userId, {
         userId,
-        nickname,
+        nickname: direction === 'incoming' ? nickname : `User ${userId}`,
         card,
         groupId,
         groupName,
@@ -86,8 +98,9 @@ export async function GET() {
           rawMessage,
           messageType: data.message_type as string || 'unknown',
           groupId,
+          direction,
         }],
-        lastMessage: textContent,
+        lastMessage: direction === 'outgoing' ? `我: ${textContent}` : textContent,
         lastTimestamp: entry.timestamp,
         count: 1,
       })
