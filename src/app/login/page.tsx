@@ -2,13 +2,12 @@
 'use client'
 
 import { Suspense, useState } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
 
 function LoginForm() {
   const [token, setToken] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  const router = useRouter()
   const searchParams = useSearchParams()
   const from = searchParams.get('from') || '/dashboard'
 
@@ -27,8 +26,7 @@ function LoginForm() {
       const data = await res.json()
 
       if (data.success) {
-        router.push(from)
-        router.refresh()
+        window.location.href = from
       } else {
         setError(data.message || 'Token 错误')
       }

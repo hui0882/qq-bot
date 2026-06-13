@@ -6,11 +6,15 @@
     "reconnectInterval": 5000,
     "maxReconnectInterval": 30000
   },
+  "api": {
+    "url": "http://115.190.250.31:3000",
+    "token": "wuxidixi12345"
+  },
   "auth": {
-    "token": "***"
+    "token": "napcat-admin-token"
   },
   "log": {
-    "maxEntries": 5000,
+    "maxEntries": 3000,
     "persistToFile": true,
     "logDir": "data/logs"
   }

@@ -1,0 +1,9 @@
+- generic [ref=e1]:
+  - generic [ref=e3]:
+    - generic [ref=e4]:
+      - heading "🤖 NapCat Platform" [level=1] [ref=e5]
+      - paragraph [ref=e6]: 请输入 Token 以登录
+    - generic [ref=e7]:
+      - textbox "输入 Token..." [active] [ref=e9]
+      - button "登录" [ref=e10]
+  - alert [ref=e11]

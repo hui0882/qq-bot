@@ -190,6 +190,10 @@ export interface PlatformConfig {
     reconnectInterval: number
     maxReconnectInterval: number
   }
+  api: {
+    url: string
+    token: string
+  }
   auth: {
     token: string
   }
