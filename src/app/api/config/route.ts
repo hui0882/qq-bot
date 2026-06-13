@@ -23,11 +23,21 @@ export async function POST(request: NextRequest) {
 
     if (body.ws) {
       const ws = body.ws as Record<string, unknown>
-      safePartial.ws = {
-        ...ws,
-        // Keep token only if it's not the masked value
-        token: ws.token === '***' ? undefined : ws.token,
+      const wsClean: Record<string, unknown> = { ...ws }
+      // Only include token if it's provided and not masked
+      if (ws.token === '***' || ws.token === undefined) {
+        delete wsClean.token
       }
+      safePartial.ws = wsClean
+    }
+
+    if (body.api) {
+      const api = body.api as Record<string, unknown>
+      const apiClean: Record<string, unknown> = { ...api }
+      if (api.token === '***' || api.token === undefined) {
+        delete apiClean.token
+      }
+      safePartial.api = apiClean
     }
 
     if (body.auth) {

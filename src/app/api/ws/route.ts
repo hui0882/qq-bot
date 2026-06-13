@@ -1,6 +1,6 @@
 // src/app/api/ws/route.ts
 import { NextRequest, NextResponse } from 'next/server'
-import { napcatWS } from '@/lib/napcat-ws'
+import { napcatApi } from '@/lib/napcat-api'
 import { validateAuth } from '@/lib/auth'
 
 export async function POST(request: NextRequest) {
@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, message: 'action is required' }, { status: 400 })
     }
 
-    const result = await napcatWS.sendAction(action, params || {})
+    const result = await napcatApi.sendAction(action, params || {})
     return NextResponse.json(result)
   } catch {
     return NextResponse.json({ success: false, message: 'Invalid request' }, { status: 400 })

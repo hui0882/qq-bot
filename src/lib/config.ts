@@ -13,6 +13,10 @@ const DEFAULT_CONFIG: PlatformConfig = {
     reconnectInterval: 5000,
     maxReconnectInterval: 30000,
   },
+  api: {
+    url: 'http://115.190.250.31:3000',
+    token: '',
+  },
   auth: {
     token: 'napcat-admin-token',
   },
@@ -47,6 +51,7 @@ class ConfigManager {
       const parsed = JSON.parse(raw) as Partial<PlatformConfig>
       return {
         ws: { ...DEFAULT_CONFIG.ws, ...parsed.ws },
+        api: { ...DEFAULT_CONFIG.api, ...parsed.api },
         auth: { ...DEFAULT_CONFIG.auth, ...parsed.auth },
         log: { ...DEFAULT_CONFIG.log, ...parsed.log },
       }
@@ -77,7 +82,10 @@ class ConfigManager {
   private diffConfigs(old: PlatformConfig, curr: PlatformConfig): string[] {
     const keys: string[] = []
     if (old.ws.url !== curr.ws.url) keys.push('ws.url')
+    if (old.ws.token !== curr.ws.token) keys.push('ws.token')
     if (old.ws.reconnect !== curr.ws.reconnect) keys.push('ws.reconnect')
+    if (old.api?.url !== curr.api?.url) keys.push('api.url')
+    if (old.api?.token !== curr.api?.token) keys.push('api.token')
     if (old.auth.token !== curr.auth.token) keys.push('auth.token')
     if (old.log.maxEntries !== curr.log.maxEntries) keys.push('log.maxEntries')
     if (old.log.persistToFile !== curr.log.persistToFile) keys.push('log.persistToFile')
@@ -91,6 +99,7 @@ class ConfigManager {
   updateConfig(partial: Partial<PlatformConfig>): void {
     this.config = {
       ws: { ...this.config.ws, ...partial.ws },
+      api: { ...this.config.api, ...partial.api },
       auth: { ...this.config.auth, ...partial.auth },
       log: { ...this.config.log, ...partial.log },
     }
@@ -108,6 +117,7 @@ class ConfigManager {
     return {
       ...this.config,
       ws: { ...this.config.ws, token: this.config.ws.token ? '***' : '' },
+      api: { ...this.config.api, token: this.config.api?.token ? '***' : '' },
       auth: { token: '***' },
     }
   }

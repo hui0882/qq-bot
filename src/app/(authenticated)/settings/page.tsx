@@ -11,6 +11,10 @@ interface Config {
     reconnectInterval: number
     maxReconnectInterval: number
   }
+  api: {
+    url: string
+    token: string
+  }
   auth: {
     token: string
   }
@@ -45,6 +49,7 @@ export default function SettingsPage() {
     // Build save payload, excluding masked tokens
     const payload: Record<string, unknown> = {
       ws: { ...config.ws },
+      api: { ...config.api },
       log: { ...config.log },
     }
     // Only include auth.token if user actually changed it (not masked)
@@ -54,6 +59,10 @@ export default function SettingsPage() {
     // Only include ws.token if user actually changed it (not masked)
     if (config.ws.token === '***') {
       delete (payload.ws as Record<string, unknown>).token
+    }
+    // Only include api.token if user actually changed it (not masked)
+    if (config.api.token === '***') {
+      delete (payload.api as Record<string, unknown>).token
     }
 
     const res = await fetch('/api/config', {
@@ -171,6 +180,33 @@ export default function SettingsPage() {
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
               />
             </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="rounded-lg border p-6">
+        <h2 className="mb-4 text-lg font-semibold">HTTP API</h2>
+        <div className="space-y-4">
+          <div>
+            <label className="mb-1 block text-sm font-medium">API 地址</label>
+            <input
+              type="text"
+              value={config.api?.url || ''}
+              onChange={(e) => setConfig({ ...config, api: { ...config.api, url: e.target.value } })}
+              placeholder="http://115.190.250.31:3000"
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 font-mono text-sm"
+            />
+            <p className="mt-1 text-xs text-muted-foreground">NapCat HTTP API 端口（通常比 WS 端口小 1）</p>
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium">API Token</label>
+            <input
+              type="text"
+              value={config.api?.token || ''}
+              onChange={(e) => setConfig({ ...config, api: { ...config.api, token: e.target.value } })}
+              placeholder="与 WS Token 相同"
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 font-mono text-sm"
+            />
           </div>
         </div>
       </div>
