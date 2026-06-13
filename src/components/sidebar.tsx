@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils'
 
 const NAV_ITEMS = [
   { href: '/dashboard', label: '状态监控', icon: '📊' },
+  { href: '/events', label: '消息事件', icon: '📨' },
   { href: '/contacts', label: '好友/群管理', icon: '👥' },
   { href: '/messages', label: '消息调试', icon: '💬' },
   { href: '/debugger', label: 'API 调试器', icon: '🔧' },

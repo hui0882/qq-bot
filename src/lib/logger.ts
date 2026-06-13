@@ -6,10 +6,12 @@ import type { LogEntry } from '@/types/napcat'
 import { configManager } from './config'
 
 export type LogListener = (entry: LogEntry) => void
+export type MessageEventListener = (entry: LogEntry) => void
 
 class Logger {
   private buffer: LogEntry[] = []
   private listeners: LogListener[] = []
+  private messageEventListeners: MessageEventListener[] = []
   private maxEntries: number
 
   constructor() {
@@ -84,15 +86,54 @@ class Logger {
 
   logEvent(event: unknown): LogEntry {
     const ev = event as Record<string, unknown>
-    return this.add({
+    const postType = ev.post_type as string
+    const metaType = ev.meta_event_type as string
+
+    // Skip heartbeat events from main buffer (too noisy)
+    if (postType === 'meta_event' && metaType === 'heartbeat') {
+      // Still persist to file for debugging
+      const entry: LogEntry = {
+        id: uuidv4(),
+        timestamp: Date.now(),
+        type: 'event',
+        direction: 'incoming',
+        action: 'heartbeat',
+        data: event,
+      }
+      this.persist(entry)
+      return entry
+    }
+
+    const full = this.add({
       type: 'event',
       direction: 'incoming',
-      action: ev.post_type as string,
+      action: postType,
       data: event,
     })
+
+    // Notify message event listeners for actual messages
+    if (postType === 'message') {
+      for (const listener of this.messageEventListeners) {
+        listener(full)
+      }
+    }
+
+    return full
   }
 
   logSystem(message: string, data?: unknown): LogEntry {
+    // Skip noisy WS received/system logs from main buffer
+    if (message === 'WS received') {
+      const entry: LogEntry = {
+        id: uuidv4(),
+        timestamp: Date.now(),
+        type: 'system',
+        data: { message, ...((data as object) || {}) },
+      }
+      this.persist(entry)
+      return entry
+    }
+
     return this.add({
       type: 'system',
       data: { message, ...((data as object) || {}) },
@@ -117,6 +158,13 @@ class Logger {
     this.listeners.push(listener)
     return () => {
       this.listeners = this.listeners.filter((l) => l !== listener)
+    }
+  }
+
+  onMessageEvent(listener: MessageEventListener): () => void {
+    this.messageEventListeners.push(listener)
+    return () => {
+      this.messageEventListeners = this.messageEventListeners.filter((l) => l !== listener)
     }
   }
 
