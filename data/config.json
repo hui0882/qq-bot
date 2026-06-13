@@ -1,0 +1,16 @@
+{
+  "ws": {
+    "url": "ws://115.190.250.31:3001",
+    "reconnect": true,
+    "reconnectInterval": 5000,
+    "maxReconnectInterval": 30000
+  },
+  "auth": {
+    "token": "napcat-admin-token"
+  },
+  "log": {
+    "maxEntries": 5000,
+    "persistToFile": true,
+    "logDir": "data/logs"
+  }
+}
