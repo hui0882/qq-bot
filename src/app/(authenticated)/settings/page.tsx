@@ -42,10 +42,24 @@ export default function SettingsPage() {
     setSaving(true)
     setMessage('')
 
+    // Build save payload, excluding masked tokens
+    const payload: Record<string, unknown> = {
+      ws: { ...config.ws },
+      log: { ...config.log },
+    }
+    // Only include auth.token if user actually changed it (not masked)
+    if (config.auth.token && config.auth.token !== '***') {
+      payload.auth = { token: config.auth.token }
+    }
+    // Only include ws.token if user actually changed it (not masked)
+    if (config.ws.token === '***') {
+      delete (payload.ws as Record<string, unknown>).token
+    }
+
     const res = await fetch('/api/config', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(config),
+      body: JSON.stringify(payload),
     })
     const data = await res.json()
 
@@ -61,7 +75,12 @@ export default function SettingsPage() {
     if (!config) return
     setMessage('测试中...')
     try {
-      const testWs = new WebSocket(config.ws.url)
+      let testUrl = config.ws.url
+      if (config.ws.token && config.ws.token !== '***') {
+        const sep = testUrl.includes('?') ? '&' : '?'
+        testUrl = `${testUrl}${sep}access_token=${encodeURIComponent(config.ws.token)}`
+      }
+      const testWs = new WebSocket(testUrl)
       testWs.onopen = () => {
         setMessage('连接成功!')
         testWs.close()

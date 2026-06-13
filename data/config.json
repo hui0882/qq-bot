@@ -7,7 +7,7 @@
     "maxReconnectInterval": 30000
   },
   "auth": {
-    "token": "napcat-admin-token"
+    "token": "***"
   },
   "log": {
     "maxEntries": 5000,

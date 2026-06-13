@@ -107,6 +107,7 @@ class ConfigManager {
   getMaskedConfig(): Omit<PlatformConfig, 'auth'> & { auth: { token: string } } {
     return {
       ...this.config,
+      ws: { ...this.config.ws, token: this.config.ws.token ? '***' : '' },
       auth: { token: '***' },
     }
   }

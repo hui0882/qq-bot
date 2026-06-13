@@ -12,7 +12,7 @@ type StatusCallback = (status: WSConnectionStatus) => void
 class NapCatWSClient {
   private ws: WebSocket | null = null
   private status: WSConnectionStatus = 'disconnected'
-  private pendingRequests = new Map<string, { resolve: ResponseCallback; timer: ReturnType<typeof setTimeout> }>()
+  private pendingRequests = new Map<string, { resolve: ResponseCallback; timer: ReturnType<typeof setTimeout>; action: string }>()
   private eventCallbacks: EventCallback[] = []
   private statusCallbacks: StatusCallback[] = []
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null
@@ -60,6 +60,15 @@ class NapCatWSClient {
       this.ws.on('message', (data: WebSocket.Data) => {
         try {
           const msg = JSON.parse(data.toString()) as Record<string, unknown>
+          const rawStr = data.toString()
+
+          // Log raw message for debugging (truncated)
+          logger.logSystem('WS received', {
+            preview: rawStr.length > 200 ? rawStr.slice(0, 200) + '...' : rawStr,
+            hasEcho: !!msg.echo,
+            hasStatus: !!msg.status,
+            postType: msg.post_type,
+          })
 
           // Check if it's a response (has echo field)
           if (msg.echo && typeof msg.echo === 'string') {
@@ -70,6 +79,20 @@ class NapCatWSClient {
               const response = msg as unknown as OB11ActionResponse
               logger.logResponse(msg.echo, response, response.status === 'ok')
               pending.resolve(response)
+            } else {
+              // Got a response with echo but no pending request
+              logger.logSystem('Received response with unknown echo', { echo: msg.echo })
+            }
+          } else if (msg.status && msg.retcode !== undefined) {
+            // Looks like a response but missing echo - try to match by action
+            const response = msg as unknown as OB11ActionResponse
+            const matched = this.tryMatchResponseByAction(response)
+            if (!matched) {
+              // Treat as event
+              logger.logEvent(msg)
+              for (const cb of this.eventCallbacks) {
+                cb(msg)
+              }
             }
           } else {
             // It's an event
@@ -79,7 +102,7 @@ class NapCatWSClient {
             }
           }
         } catch {
-          logger.logSystem('Failed to parse WS message', { raw: data.toString() })
+          logger.logSystem('Failed to parse WS message', { raw: data.toString().slice(0, 200) })
         }
       })
 
@@ -108,6 +131,22 @@ class NapCatWSClient {
       logger.logSystem('Failed to create WebSocket', { error: (err as Error).message })
       this.scheduleReconnect()
     }
+  }
+
+  // Try to match a response that has status/retcode but no echo
+  private tryMatchResponseByAction(response: OB11ActionResponse): boolean {
+    // Find the oldest pending request
+    const entries = Array.from(this.pendingRequests.entries())
+    if (entries.length === 0) return false
+
+    // Match the first pending request (FIFO)
+    const [echo, pending] = entries[0]
+    clearTimeout(pending.timer)
+    this.pendingRequests.delete(echo)
+    response.echo = echo
+    logger.logResponse(echo, response, response.status === 'ok')
+    pending.resolve(response)
+    return true
   }
 
   private scheduleReconnect(): void {
@@ -157,15 +196,16 @@ class NapCatWSClient {
     const payload = JSON.stringify({ action, params, echo })
 
     logger.logRequest(action, params, echo)
+    logger.logSystem(`Sending action: ${action}`, { echo, params })
 
     return new Promise((resolve) => {
       const timer = setTimeout(() => {
         this.pendingRequests.delete(echo)
-        logger.logResponse(echo, { message: 'Request timeout' }, false)
-        resolve({ status: 'failed', retcode: -1, data: null, message: 'Request timeout' })
+        logger.logResponse(echo, { message: 'Request timeout (30s)' }, false)
+        resolve({ status: 'failed', retcode: -1, data: null, message: 'Request timeout (30s)' })
       }, 30000)
 
-      this.pendingRequests.set(echo, { resolve, timer })
+      this.pendingRequests.set(echo, { resolve, timer, action })
       this.ws!.send(payload)
     })
   }
