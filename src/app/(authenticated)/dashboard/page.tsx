@@ -44,6 +44,7 @@ export default function DashboardPage() {
   const [statusInfo, setStatusInfo] = useState<StatusInfo | null>(null)
   const [versionInfo, setVersionInfo] = useState<VersionInfo | null>(null)
   const [loading, setLoading] = useState(true)
+  const [apiError, setApiError] = useState<string | null>(null)
 
   const callApi = async (action: string) => {
     const res = await fetch('/api/ws', {
@@ -56,52 +57,82 @@ export default function DashboardPage() {
 
   const loadData = async () => {
     setLoading(true)
+    setApiError(null)
     try {
       const [loginRes, statusRes, versionRes] = await Promise.all([
         callApi('get_login_info'),
         callApi('get_status'),
         callApi('get_version_info'),
       ])
-      if (loginRes?.data) setLoginInfo(loginRes.data)
-      if (statusRes?.data) setStatusInfo(statusRes.data)
-      if (versionRes?.data) setVersionInfo(versionRes.data)
+
+      // Check if any API call failed due to WS not connected
+      const anyFailed = [loginRes, statusRes, versionRes].some(
+        (r) => r.status === 'failed' || r.message?.includes('not connected'),
+      )
+      if (anyFailed) {
+        setApiError('无法获取数据 — WebSocket 未连接')
+      }
+
+      if (loginRes?.data && loginRes.status !== 'failed') setLoginInfo(loginRes.data)
+      if (statusRes?.data && statusRes.status !== 'failed') setStatusInfo(statusRes.data)
+      if (versionRes?.data && versionRes.status !== 'failed') setVersionInfo(versionRes.data)
     } catch {
-      // handle error silently
+      setApiError('请求失败')
     } finally {
       setLoading(false)
     }
   }
 
   useEffect(() => {
-    loadData()
-
+    // Subscribe to SSE for connection status first
     const eventSource = new EventSource('/api/events')
     eventSource.onmessage = (event) => {
       try {
         const msg = JSON.parse(event.data)
         if (msg.type === 'connection_status') {
           setConnInfo(msg.data)
+          // Once we get connection status, load API data
+          if (msg.data?.status === 'connected') {
+            loadData()
+          } else if (msg.data?.status === 'disconnected' || msg.data?.status === 'error') {
+            setLoading(false)
+            setApiError('WebSocket 未连接 — 请检查连接配置')
+          }
         }
       } catch {
         // ignore
       }
     }
 
+    eventSource.onerror = () => {
+      setLoading(false)
+    }
+
+    // Also try loading data immediately in case WS is already connected
+    loadData()
+
     return () => eventSource.close()
   }, [])
 
   const handleReconnect = async () => {
-    await fetch('/api/config', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ws: { url: 'ws://115.190.250.31:3001' } }),
-    })
-    setTimeout(loadData, 1000)
+    setApiError(null)
+    setLoading(true)
+    // Trigger reconnect by toggling config
+    const res = await fetch('/api/config')
+    const configData = await res.json()
+    if (configData.data) {
+      await fetch('/api/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(configData.data),
+      })
+    }
+    // Wait a bit then reload
+    setTimeout(loadData, 2000)
   }
 
-  if (loading) {
-    return <div className="flex items-center justify-center h-full">加载中...</div>
-  }
+  const isConnected = connInfo?.status === 'connected'
+  const isError = connInfo?.status === 'error' || connInfo?.status === 'disconnected'
 
   return (
     <div className="space-y-6">
@@ -115,12 +146,55 @@ export default function DashboardPage() {
         </button>
       </div>
 
+      {/* Connection Status Banner */}
+      {isError && (
+        <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4">
+          <div className="flex items-center gap-3">
+            <StatusDot online={false} />
+            <div>
+              <p className="font-medium text-destructive">连接失败</p>
+              <p className="text-sm text-destructive/80">
+                无法连接到 WebSocket 服务器。请检查：
+              </p>
+              <ul className="mt-1 list-disc pl-5 text-sm text-destructive/80">
+                <li>服务器地址是否正确</li>
+                <li>WS Token 是否正确</li>
+                <li>服务器是否在线</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {connInfo?.status === 'connecting' && (
+        <div className="rounded-lg border border-yellow-500/50 bg-yellow-500/10 p-4">
+          <div className="flex items-center gap-3">
+            <span className="inline-block h-3 w-3 animate-pulse rounded-full bg-yellow-500" />
+            <p className="font-medium text-yellow-700">正在连接...</p>
+          </div>
+        </div>
+      )}
+
+      {apiError && isConnected && (
+        <div className="rounded-lg border border-yellow-500/50 bg-yellow-500/10 p-4">
+          <p className="text-sm text-yellow-700">{apiError}</p>
+        </div>
+      )}
+
       <div className="grid gap-6 md:grid-cols-2">
         <StatusCard title="连接状态">
           <div className="space-y-2">
             <div className="flex items-center gap-2">
-              <StatusDot online={connInfo?.status === 'connected'} />
-              <span className="font-medium">{connInfo?.status || '未知'}</span>
+              <StatusDot online={isConnected} />
+              <span className={`font-medium ${isError ? 'text-destructive' : ''}`}>
+                {connInfo?.status === 'connected'
+                  ? '已连接'
+                  : connInfo?.status === 'connecting'
+                    ? '连接中...'
+                    : connInfo?.status === 'error'
+                      ? '连接错误'
+                      : connInfo?.status || '未知'}
+              </span>
             </div>
             {connInfo?.connectedAt && (
               <p className="text-sm text-muted-foreground">
@@ -138,7 +212,7 @@ export default function DashboardPage() {
               <p><span className="text-muted-foreground">昵称:</span> {loginInfo.nickname}</p>
             </div>
           ) : (
-            <p className="text-muted-foreground">未获取到登录信息</p>
+            <p className="text-muted-foreground">{loading ? '加载中...' : '未获取到登录信息'}</p>
           )}
         </StatusCard>
 
@@ -152,7 +226,7 @@ export default function DashboardPage() {
               <p className="text-sm text-muted-foreground">状态: {statusInfo.good ? '正常' : '异常'}</p>
             </div>
           ) : (
-            <p className="text-muted-foreground">未获取到运行状态</p>
+            <p className="text-muted-foreground">{loading ? '加载中...' : '未获取到运行状态'}</p>
           )}
         </StatusCard>
 
@@ -164,7 +238,7 @@ export default function DashboardPage() {
               <p><span className="text-muted-foreground">协议:</span> {versionInfo.protocol_version}</p>
             </div>
           ) : (
-            <p className="text-muted-foreground">未获取到版本信息</p>
+            <p className="text-muted-foreground">{loading ? '加载中...' : '未获取到版本信息'}</p>
           )}
         </StatusCard>
       </div>

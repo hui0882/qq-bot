@@ -38,8 +38,15 @@ class NapCatWSClient {
     const config = configManager.getConfig()
     this.setStatus('connecting')
 
+    // Build URL with access_token if configured
+    let wsUrl = config.ws.url
+    if (config.ws.token) {
+      const separator = wsUrl.includes('?') ? '&' : '?'
+      wsUrl = `${wsUrl}${separator}access_token=${encodeURIComponent(config.ws.token)}`
+    }
+
     try {
-      this.ws = new WebSocket(config.ws.url)
+      this.ws = new WebSocket(wsUrl)
 
       this.ws.on('open', () => {
         this.status = 'connected'
@@ -76,16 +83,25 @@ class NapCatWSClient {
         }
       })
 
-      this.ws.on('close', () => {
+      this.ws.on('close', (code: number, reason: Buffer) => {
         this.setStatus('disconnected')
         this.connectedAt = null
-        logger.logSystem('WebSocket disconnected')
+        const reasonStr = reason?.toString() || ''
+        const msg = code === 1006
+          ? 'WebSocket connection failed (server unreachable or auth rejected)'
+          : `WebSocket closed (code: ${code}${reasonStr ? `, reason: ${reasonStr}` : ''})`
+        logger.logSystem(msg, { code, reason: reasonStr })
         this.scheduleReconnect()
       })
 
       this.ws.on('error', (err: Error) => {
         this.setStatus('error')
-        logger.logSystem('WebSocket error', { error: err.message })
+        const msg = err.message.includes('ECONNREFUSED')
+          ? `Connection refused: ${config.ws.url}`
+          : err.message.includes('401') || err.message.includes('403')
+            ? `Authentication failed - check WS token`
+            : `WebSocket error: ${err.message}`
+        logger.logSystem(msg, { error: err.message })
       })
     } catch (err) {
       this.setStatus('error')
