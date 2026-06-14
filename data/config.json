@@ -14,7 +14,7 @@
     "token": "napcat-admin-token"
   },
   "log": {
-    "maxEntries": 3000,
+    "maxEntries": 5000,
     "persistToFile": true,
     "logDir": "data/logs"
   }
