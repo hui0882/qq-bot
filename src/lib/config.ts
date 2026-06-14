@@ -28,6 +28,7 @@ const DEFAULT_CONFIG: PlatformConfig = {
   },
   voiceReply: {
     mode: 'off',
+    allowUserOverride: false,
   },
   friendRequest: {
     mode: 'auto',
