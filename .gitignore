@@ -42,4 +42,6 @@ next-env.d.ts
 
 # NapCat Platform
 data/logs/
+data/tmp/
+data/config.json
 .playwright-mcp/
