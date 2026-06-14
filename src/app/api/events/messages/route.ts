@@ -3,112 +3,145 @@ import { NextResponse } from 'next/server'
 import { logger } from '@/lib/logger'
 import { validateAuth } from '@/lib/auth'
 
+interface EventItem {
+  id: string
+  timestamp: number
+  type: 'message' | 'request' | 'notice'
+  direction: 'incoming' | 'outgoing'
+  // Message fields
+  userId?: number
+  nickname?: string
+  card?: string
+  groupId?: number | null
+  groupName?: string
+  content?: string
+  rawMessage?: string
+  // Request fields
+  requestType?: string
+  flag?: string
+  comment?: string
+  // Notice fields
+  noticeType?: string
+  subType?: string
+}
+
 export async function GET() {
   if (!(await validateAuth())) {
     return NextResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 })
   }
 
-  // Get all message events from the buffer
   const allLogs = logger.getLogs({ type: 'event', limit: 2000 })
-  const messageEvents = allLogs.filter((l) => l.action === 'message')
 
-  // Group by user (the "other" person in the conversation)
-  const userMap = new Map<number, {
-    userId: number
-    nickname: string
-    card: string
-    groupId: number | null
-    groupName: string
-    messages: Array<{
-      id: string
-      timestamp: number
-      content: string
-      rawMessage: string
-      messageType: string
-      groupId: number | null
-      direction: 'incoming' | 'outgoing'
-    }>
-    lastMessage: string
-    lastTimestamp: number
-    count: number
-  }>()
+  const items: EventItem[] = []
 
-  for (const entry of messageEvents) {
+  for (const entry of allLogs) {
     const data = entry.data as Record<string, unknown>
-    const sender = data.sender as Record<string, unknown> | undefined
-    const userId = data.user_id as number
-    const message = data.message as Array<Record<string, unknown>> | undefined
-    const rawMessage = data.raw_message as string || ''
-    const direction = entry.direction || 'incoming'
+    const postType = data.post_type as string
 
-    if (!userId) continue
+    if (postType === 'message') {
+      // Message events
+      const sender = data.sender as Record<string, unknown> | undefined
+      const userId = data.user_id as number
+      const message = data.message as Array<Record<string, unknown>> | undefined
+      const rawMessage = data.raw_message as string || ''
+      const direction = entry.direction || 'incoming'
 
-    // For outgoing messages, skip if user_id is 0 (self)
-    if (direction === 'outgoing' && userId === 0) continue
+      if (!userId || userId === 0) continue
 
-    // Extract text content from message segments
-    let textContent = rawMessage
-    if (message && Array.isArray(message)) {
-      textContent = message
-        .filter((m) => m.type === 'text')
-        .map((m) => (m.data as Record<string, unknown>)?.text as string)
-        .join('') || rawMessage
-    }
+      let textContent = rawMessage
+      if (message && Array.isArray(message)) {
+        textContent = message
+          .filter((m) => m.type === 'text')
+          .map((m) => (m.data as Record<string, unknown>)?.text as string)
+          .join('') || rawMessage
+      }
 
-    const existing = userMap.get(userId)
-    const groupId = data.group_id as number | null || null
-    const nickname = direction === 'incoming'
-      ? ((sender?.nickname as string) || `User ${userId}`)
-      : '我'
-    const card = direction === 'incoming'
-      ? ((sender?.card as string) || '')
-      : ''
-    const groupName = (data.group_name as string) || ''
-
-    if (existing) {
-      existing.messages.push({
+      items.push({
         id: entry.id,
         timestamp: entry.timestamp,
+        type: 'message',
+        direction,
+        userId,
+        nickname: direction === 'incoming' ? ((sender?.nickname as string) || `User ${userId}`) : '我',
+        card: direction === 'incoming' ? ((sender?.card as string) || '') : '',
+        groupId: (data.group_id as number) || null,
+        groupName: (data.group_name as string) || '',
         content: textContent,
         rawMessage,
-        messageType: data.message_type as string || 'unknown',
-        groupId,
-        direction,
       })
-      if (entry.timestamp > existing.lastTimestamp) {
-        existing.lastMessage = direction === 'outgoing' ? `我: ${textContent}` : textContent
-        existing.lastTimestamp = entry.timestamp
-        if (direction === 'incoming') {
-          existing.nickname = nickname
-          existing.card = card
+    } else if (postType === 'request') {
+      // Request events (friend request, group request, etc.)
+      const requestType = data.request_type as string
+      const userId = data.user_id as number
+      const sender = data.sender as Record<string, unknown> | undefined
+
+      items.push({
+        id: entry.id,
+        timestamp: entry.timestamp,
+        type: 'request',
+        direction: 'incoming',
+        userId,
+        nickname: (sender?.nickname as string) || `User ${userId}`,
+        card: '',
+        groupId: (data.group_id as number) || null,
+        groupName: '',
+        requestType,
+        flag: data.flag as string,
+        comment: (data.comment as string) || '',
+        content: requestType === 'friend'
+          ? `请求添加好友: ${data.comment || '无验证信息'}`
+          : requestType === 'group'
+            ? `请求加入群 ${data.group_id}: ${data.comment || '无验证信息'}`
+            : `请求: ${requestType}`,
+      })
+    } else if (postType === 'notice') {
+      // Notice events (group member changes, etc.)
+      const noticeType = data.notice_type as string
+      const userId = data.user_id as number || data.operator_id as number
+
+      let content = noticeType
+      if (noticeType === 'group_increase') {
+        content = `群成员增加: ${data.user_id}`
+      } else if (noticeType === 'group_decrease') {
+        content = `群成员减少: ${data.user_id}`
+      } else if (noticeType === 'group_admin') {
+        content = `管理员${data.sub_type === 'set' ? '设置' : '取消'}: ${data.user_id}`
+      } else if (noticeType === 'group_ban') {
+        const duration = data.duration as number
+        content = duration ? `禁言 ${data.user_id} ${duration}秒` : `解除禁言 ${data.user_id}`
+      } else if (noticeType === 'friend_add') {
+        content = `好友添加: ${data.user_id}`
+      } else if (noticeType === 'group_recall') {
+        content = `群消息撤回: ${data.operator_id} 撤回了消息`
+      } else if (noticeType === 'friend_recall') {
+        content = `好友消息撤回: ${data.user_id}`
+      } else if (noticeType === 'notify') {
+        const subType = data.sub_type as string
+        if (subType === 'poke') {
+          content = `${data.sender_id} 戳了戳 ${data.target_id}`
+        } else if (subType === 'input_status') {
+          content = `${data.user_id} 正在输入...`
         }
       }
-      existing.count++
-    } else {
-      userMap.set(userId, {
+
+      items.push({
+        id: entry.id,
+        timestamp: entry.timestamp,
+        type: 'notice',
+        direction: 'incoming',
         userId,
-        nickname: direction === 'incoming' ? nickname : `User ${userId}`,
-        card,
-        groupId,
-        groupName,
-        messages: [{
-          id: entry.id,
-          timestamp: entry.timestamp,
-          content: textContent,
-          rawMessage,
-          messageType: data.message_type as string || 'unknown',
-          groupId,
-          direction,
-        }],
-        lastMessage: direction === 'outgoing' ? `我: ${textContent}` : textContent,
-        lastTimestamp: entry.timestamp,
-        count: 1,
+        nickname: '',
+        groupId: (data.group_id as number) || null,
+        groupName: '',
+        noticeType,
+        subType: data.sub_type as string,
+        content,
       })
     }
   }
 
-  // Convert to array, sorted by latest message
-  const users = Array.from(userMap.values()).sort((a, b) => b.lastTimestamp - a.lastTimestamp)
+  // Sort by timestamp descending
+  items.sort((a, b) => b.timestamp - a.timestamp)
 
-  return NextResponse.json({ success: true, data: users })
+  return NextResponse.json({ success: true, data: items })
 }
