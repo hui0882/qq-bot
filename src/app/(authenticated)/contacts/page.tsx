@@ -333,35 +333,36 @@ export default function ContactsPage() {
             <tbody>
               {tab === 'friends'
                 ? filteredFriends.map((f) => (
-                    <tr key={f.user_id} className="border-b hover:bg-muted/50">
+                    <tr
+                      key={f.user_id}
+                      className="border-b hover:bg-muted/50 cursor-pointer"
+                      onClick={() => openAction({ type: 'friend', id: f.user_id, name: f.remark || f.nickname })}
+                    >
                       <td className="p-3 font-mono text-sm">{f.user_id}</td>
                       <td className="p-3">{f.nickname}</td>
                       <td className="p-3 text-muted-foreground">{f.remark || '-'}</td>
                       <td className="p-3">
-                        <button
-                          onClick={() => openAction({ type: 'friend', id: f.user_id, name: f.remark || f.nickname })}
-                          className="rounded-md border px-2 py-1 text-xs hover:bg-accent"
-                        >
-                          操作
-                        </button>
+                        <span className="rounded-md border px-2 py-1 text-xs hover:bg-accent">
+                          操作 ▸
+                        </span>
                       </td>
                     </tr>
                   ))
                 : filteredGroups.map((g) => (
                     <tr
                       key={g.group_id}
-                      className={`border-b hover:bg-muted/50 ${
+                      className={`border-b hover:bg-muted/50 cursor-pointer ${
                         selectedGroup === g.group_id ? 'bg-muted' : ''
                       }`}
                     >
                       <td
-                        className="p-3 font-mono text-sm cursor-pointer"
+                        className="p-3 font-mono text-sm"
                         onClick={() => loadMembers(g.group_id, g.group_name)}
                       >
                         {g.group_id}
                       </td>
                       <td
-                        className="p-3 cursor-pointer"
+                        className="p-3"
                         onClick={() => loadMembers(g.group_id, g.group_name)}
                       >
                         {g.group_name}
@@ -391,7 +392,17 @@ export default function ContactsPage() {
             <h3 className="mb-3 font-semibold">群成员 ({members.length})</h3>
             <div className="max-h-[600px] space-y-1 overflow-y-auto">
               {members.map((m) => (
-                <div key={m.user_id} className="flex items-center justify-between rounded p-2 text-sm hover:bg-muted/50">
+                <div
+                  key={m.user_id}
+                  className="flex items-center justify-between rounded p-2 text-sm hover:bg-muted/50 cursor-pointer"
+                  onClick={() => openAction({
+                    type: 'member',
+                    id: m.user_id,
+                    name: m.card || m.nickname,
+                    groupId: selectedGroup,
+                    groupName: selectedGroupName,
+                  })}
+                >
                   <div className="flex-1 min-w-0">
                     <span className="font-mono text-xs text-muted-foreground">{m.user_id}</span>
                     <span className="ml-2 truncate">{m.card || m.nickname}</span>
