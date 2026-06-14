@@ -25,7 +25,7 @@ interface GroupMember {
   shut_up_timestamp?: number
 }
 
-type Tab = 'friends' | 'groups'
+type Tab = 'friends' | 'groups' | 'requests'
 
 interface ActionDef {
   label: string
@@ -34,6 +34,23 @@ interface ActionDef {
   description: string
   needsInput?: { key: string; label: string; placeholder: string; type?: 'text' | 'textarea' | 'number' }[]
   confirm?: string
+}
+
+const CACHE_KEY_FRIENDS = 'napcat_cache_friends'
+const CACHE_KEY_GROUPS = 'napcat_cache_groups'
+
+function getCached<T>(key: string): T | null {
+  if (typeof window === 'undefined') return null
+  try {
+    const raw = localStorage.getItem(key)
+    if (!raw) return null
+    return JSON.parse(raw) as T
+  } catch { return null }
+}
+
+function setCache<T>(key: string, data: T): void {
+  if (typeof window === 'undefined') return
+  try { localStorage.setItem(key, JSON.stringify(data)) } catch { /* ignore */ }
 }
 
 export default function ContactsPage() {
@@ -45,6 +62,43 @@ export default function ContactsPage() {
   const [members, setMembers] = useState<GroupMember[]>([])
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(false)
+  const [pendingRequests, setPendingRequests] = useState<Array<{
+    flag: string; userId: number; nickname: string; comment: string; timestamp: number
+  }>>([])
+
+  // Load from cache on mount
+  useEffect(() => {
+    const cachedFriends = getCached<Friend[]>(CACHE_KEY_FRIENDS)
+    if (cachedFriends) setFriends(cachedFriends)
+    const cachedGroups = getCached<Group[]>(CACHE_KEY_GROUPS)
+    if (cachedGroups) setGroups(cachedGroups)
+  }, [])
+
+  const loadPendingRequests = async () => {
+    const res = await fetch('/api/friend-requests')
+    const data = await res.json()
+    if (data.data) setPendingRequests(data.data)
+  }
+
+  const handleApprove = async (flag: string) => {
+    const res = await fetch('/api/friend-requests', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'approve', flag }),
+    })
+    const data = await res.json()
+    if (data.success) loadPendingRequests()
+  }
+
+  const handleReject = async (flag: string) => {
+    const res = await fetch('/api/friend-requests', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'reject', flag }),
+    })
+    const data = await res.json()
+    if (data.success) loadPendingRequests()
+  }
 
   // Action dialog state
   const [actionTarget, setActionTarget] = useState<{
@@ -68,17 +122,33 @@ export default function ContactsPage() {
     return res.json()
   }
 
-  const loadFriends = async () => {
+  const loadFriends = async (force = false) => {
+    if (!force) {
+      const cached = getCached<Friend[]>(CACHE_KEY_FRIENDS)
+      if (cached) { setFriends(cached); return }
+    }
     setLoading(true)
     const res = await callApi('get_friend_list')
-    if (res.data) setFriends(Array.isArray(res.data) ? res.data : [])
+    if (res.data) {
+      const list = Array.isArray(res.data) ? res.data : []
+      setFriends(list)
+      setCache(CACHE_KEY_FRIENDS, list)
+    }
     setLoading(false)
   }
 
-  const loadGroups = async () => {
+  const loadGroups = async (force = false) => {
+    if (!force) {
+      const cached = getCached<Group[]>(CACHE_KEY_GROUPS)
+      if (cached) { setGroups(cached); return }
+    }
     setLoading(true)
     const res = await callApi('get_group_list')
-    if (res.data) setGroups(Array.isArray(res.data) ? res.data : [])
+    if (res.data) {
+      const list = Array.isArray(res.data) ? res.data : []
+      setGroups(list)
+      setCache(CACHE_KEY_GROUPS, list)
+    }
     setLoading(false)
   }
 
@@ -93,7 +163,8 @@ export default function ContactsPage() {
 
   useEffect(() => {
     if (tab === 'friends') loadFriends()
-    else loadGroups()
+    else if (tab === 'groups') loadGroups()
+    else if (tab === 'requests') loadPendingRequests()
   }, [tab])
 
   const filteredFriends = friends.filter(
@@ -288,6 +359,14 @@ export default function ContactsPage() {
         >
           群列表 ({groups.length})
         </button>
+        <button
+          onClick={() => { setTab('requests'); setSelectedGroup(null) }}
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+            tab === 'requests' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground'
+          }`}
+        >
+          好友请求 {pendingRequests.length > 0 && <span className="ml-1 rounded-full bg-destructive px-1.5 py-0.5 text-xs text-destructive-foreground">{pendingRequests.length}</span>}
+        </button>
       </div>
 
       <div className="flex gap-4">
@@ -299,7 +378,11 @@ export default function ContactsPage() {
           className="flex h-10 w-64 rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
         />
         <button
-          onClick={() => (tab === 'friends' ? loadFriends() : loadGroups())}
+          onClick={() => {
+            if (tab === 'friends') loadFriends(true)
+            else if (tab === 'groups') loadGroups(true)
+            else if (tab === 'requests') loadPendingRequests()
+          }}
           className="inline-flex items-center justify-center rounded-md border bg-background px-4 py-2 text-sm font-medium hover:bg-accent"
         >
           刷新
@@ -310,6 +393,49 @@ export default function ContactsPage() {
 
       <div className="flex gap-6">
         <div className="flex-1">
+          {tab === 'requests' ? (
+            /* Friend Requests List */
+            <div className="space-y-2">
+              {pendingRequests.length === 0 ? (
+                <div className="rounded-lg border p-8 text-center">
+                  <p className="text-muted-foreground">暂无待处理的好友请求</p>
+                </div>
+              ) : (
+                pendingRequests.map((req) => (
+                  <div key={req.flag} className="flex items-center justify-between rounded-lg border p-4">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
+                        {req.nickname.charAt(0) || '?'}
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">{req.nickname}</span>
+                          <span className="text-xs text-muted-foreground font-mono">{req.userId}</span>
+                        </div>
+                        {req.comment && <p className="text-sm text-muted-foreground">验证信息: {req.comment}</p>}
+                        <p className="text-xs text-muted-foreground">{new Date(req.timestamp).toLocaleString('zh-CN')}</p>
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => handleApprove(req.flag)}
+                        className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+                      >
+                        同意
+                      </button>
+                      <button
+                        onClick={() => handleReject(req.flag)}
+                        className="rounded-md border border-destructive px-3 py-1.5 text-sm font-medium text-destructive hover:bg-destructive/10"
+                      >
+                        拒绝
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          ) : (
+          <>
           <table className="w-full border-collapse">
             <thead>
               <tr className="border-b text-left text-sm text-muted-foreground">
@@ -385,6 +511,8 @@ export default function ContactsPage() {
                   ))}
             </tbody>
           </table>
+          </>
+          )}
         </div>
 
         {tab === 'groups' && selectedGroup && (

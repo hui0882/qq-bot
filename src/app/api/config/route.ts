@@ -40,6 +40,23 @@ export async function POST(request: NextRequest) {
       safePartial.api = apiClean
     }
 
+    if (body.tts) {
+      const tts = body.tts as Record<string, unknown>
+      const ttsClean: Record<string, unknown> = { ...tts }
+      if (tts.apiKey === '***' || tts.apiKey === undefined) {
+        delete ttsClean.apiKey
+      }
+      safePartial.tts = ttsClean
+    }
+
+    if (body.voiceReply) {
+      safePartial.voiceReply = body.voiceReply
+    }
+
+    if (body.friendRequest) {
+      safePartial.friendRequest = body.friendRequest
+    }
+
     if (body.auth) {
       const auth = body.auth as Record<string, unknown>
       // Only include auth if token is not masked
