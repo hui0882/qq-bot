@@ -5,6 +5,7 @@ import type { OB11ActionResponse, WSConnectionStatus } from '@/types/napcat'
 import { configManager } from './config'
 import { logger } from './logger'
 import { handleVoiceReply } from './voice-reply'
+import { handleFriendRequestEvent } from './friend-request'
 
 type ResponseCallback = (response: OB11ActionResponse) => void
 type EventCallback = (event: Record<string, unknown>) => void
@@ -95,6 +96,7 @@ class NapCatWSClient {
                 cb(msg)
               }
               handleVoiceReply(msg)
+              handleFriendRequestEvent(msg)
             }
           } else {
             // It's an event

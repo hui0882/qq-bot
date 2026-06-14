@@ -25,7 +25,7 @@ interface GroupMember {
   shut_up_timestamp?: number
 }
 
-type Tab = 'friends' | 'groups'
+type Tab = 'friends' | 'groups' | 'requests'
 
 interface ActionDef {
   label: string
@@ -45,6 +45,35 @@ export default function ContactsPage() {
   const [members, setMembers] = useState<GroupMember[]>([])
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(false)
+  const [pendingRequests, setPendingRequests] = useState<Array<{
+    flag: string; userId: number; nickname: string; comment: string; timestamp: number
+  }>>([])
+
+  const loadPendingRequests = async () => {
+    const res = await fetch('/api/friend-requests')
+    const data = await res.json()
+    if (data.data) setPendingRequests(data.data)
+  }
+
+  const handleApprove = async (flag: string) => {
+    const res = await fetch('/api/friend-requests', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'approve', flag }),
+    })
+    const data = await res.json()
+    if (data.success) loadPendingRequests()
+  }
+
+  const handleReject = async (flag: string) => {
+    const res = await fetch('/api/friend-requests', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'reject', flag }),
+    })
+    const data = await res.json()
+    if (data.success) loadPendingRequests()
+  }
 
   // Action dialog state
   const [actionTarget, setActionTarget] = useState<{
@@ -93,7 +122,8 @@ export default function ContactsPage() {
 
   useEffect(() => {
     if (tab === 'friends') loadFriends()
-    else loadGroups()
+    else if (tab === 'groups') loadGroups()
+    else if (tab === 'requests') loadPendingRequests()
   }, [tab])
 
   const filteredFriends = friends.filter(
@@ -288,6 +318,14 @@ export default function ContactsPage() {
         >
           群列表 ({groups.length})
         </button>
+        <button
+          onClick={() => { setTab('requests'); setSelectedGroup(null) }}
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+            tab === 'requests' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground'
+          }`}
+        >
+          好友请求 {pendingRequests.length > 0 && <span className="ml-1 rounded-full bg-destructive px-1.5 py-0.5 text-xs text-destructive-foreground">{pendingRequests.length}</span>}
+        </button>
       </div>
 
       <div className="flex gap-4">
@@ -310,6 +348,49 @@ export default function ContactsPage() {
 
       <div className="flex gap-6">
         <div className="flex-1">
+          {tab === 'requests' ? (
+            /* Friend Requests List */
+            <div className="space-y-2">
+              {pendingRequests.length === 0 ? (
+                <div className="rounded-lg border p-8 text-center">
+                  <p className="text-muted-foreground">暂无待处理的好友请求</p>
+                </div>
+              ) : (
+                pendingRequests.map((req) => (
+                  <div key={req.flag} className="flex items-center justify-between rounded-lg border p-4">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
+                        {req.nickname.charAt(0) || '?'}
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">{req.nickname}</span>
+                          <span className="text-xs text-muted-foreground font-mono">{req.userId}</span>
+                        </div>
+                        {req.comment && <p className="text-sm text-muted-foreground">验证信息: {req.comment}</p>}
+                        <p className="text-xs text-muted-foreground">{new Date(req.timestamp).toLocaleString('zh-CN')}</p>
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => handleApprove(req.flag)}
+                        className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+                      >
+                        同意
+                      </button>
+                      <button
+                        onClick={() => handleReject(req.flag)}
+                        className="rounded-md border border-destructive px-3 py-1.5 text-sm font-medium text-destructive hover:bg-destructive/10"
+                      >
+                        拒绝
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          ) : (
+          <>
           <table className="w-full border-collapse">
             <thead>
               <tr className="border-b text-left text-sm text-muted-foreground">
@@ -385,6 +466,8 @@ export default function ContactsPage() {
                   ))}
             </tbody>
           </table>
+          </>
+          )}
         </div>
 
         {tab === 'groups' && selectedGroup && (

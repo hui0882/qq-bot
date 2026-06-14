@@ -8,6 +8,7 @@ interface Config {
   api: { url: string; token: string }
   tts: { enabled: boolean; apiUrl: string; apiKey: string; model: string; voice: string; style: string; format: string }
   voiceReply: { mode: 'off' | 'always' | 'auto' }
+  friendRequest: { mode: 'auto' | 'manual' }
   auth: { token: string }
   log: { maxEntries: number; persistToFile: boolean; logDir: string }
 }
@@ -150,6 +151,22 @@ export default function SettingsPage() {
           </label>
         </div>
         <p className="text-xs text-muted-foreground">音色: {config.tts?.voice || '茉莉'} · 风格: {config.tts?.style || '温柔'}</p>
+      </div>
+
+      {/* Friend Request */}
+      <div className="rounded-lg border p-6 space-y-4">
+        <h2 className="text-lg font-semibold">好友请求</h2>
+        <p className="text-sm text-muted-foreground">收到好友申请时的处理方式</p>
+        <div className="flex gap-3">
+          <label className={`flex items-center gap-2 rounded-lg border-2 px-4 py-3 cursor-pointer transition-colors ${config.friendRequest?.mode === 'auto' ? 'border-primary bg-primary/5' : 'border-muted hover:border-muted-foreground/30'}`}>
+            <input type="radio" name="friendRequest" value="auto" checked={config.friendRequest?.mode === 'auto'} onChange={() => setConfig({ ...config, friendRequest: { mode: 'auto' } })} className="h-4 w-4" />
+            <div><div className="text-sm font-medium">自动同意</div><div className="text-xs text-muted-foreground">直接添加为好友</div></div>
+          </label>
+          <label className={`flex items-center gap-2 rounded-lg border-2 px-4 py-3 cursor-pointer transition-colors ${config.friendRequest?.mode === 'manual' ? 'border-primary bg-primary/5' : 'border-muted hover:border-muted-foreground/30'}`}>
+            <input type="radio" name="friendRequest" value="manual" checked={config.friendRequest?.mode === 'manual'} onChange={() => setConfig({ ...config, friendRequest: { mode: 'manual' } })} className="h-4 w-4" />
+            <div><div className="text-sm font-medium">手动同意</div><div className="text-xs text-muted-foreground">在好友请求中处理</div></div>
+          </label>
+        </div>
       </div>
 
       {/* Auth */}
