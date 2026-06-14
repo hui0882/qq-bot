@@ -29,6 +29,9 @@ const DEFAULT_CONFIG: PlatformConfig = {
   voiceReply: {
     mode: 'off',
   },
+  friendRequest: {
+    mode: 'auto',
+  },
   auth: {
     token: 'napcat-admin-token',
   },
@@ -66,6 +69,7 @@ class ConfigManager {
         api: { ...DEFAULT_CONFIG.api, ...parsed.api },
         tts: { ...DEFAULT_CONFIG.tts, ...parsed.tts },
         voiceReply: { ...DEFAULT_CONFIG.voiceReply, ...parsed.voiceReply },
+        friendRequest: { ...DEFAULT_CONFIG.friendRequest, ...parsed.friendRequest },
         auth: { ...DEFAULT_CONFIG.auth, ...parsed.auth },
         log: { ...DEFAULT_CONFIG.log, ...parsed.log },
       }
@@ -103,6 +107,7 @@ class ConfigManager {
     if (old.tts?.apiKey !== curr.tts?.apiKey) keys.push('tts.apiKey')
     if (old.tts?.enabled !== curr.tts?.enabled) keys.push('tts.enabled')
     if (old.voiceReply?.mode !== curr.voiceReply?.mode) keys.push('voiceReply.mode')
+    if (old.friendRequest?.mode !== curr.friendRequest?.mode) keys.push('friendRequest.mode')
     if (old.auth.token !== curr.auth.token) keys.push('auth.token')
     if (old.log.maxEntries !== curr.log.maxEntries) keys.push('log.maxEntries')
     if (old.log.persistToFile !== curr.log.persistToFile) keys.push('log.persistToFile')
@@ -119,6 +124,7 @@ class ConfigManager {
       api: { ...this.config.api, ...partial.api },
       tts: { ...this.config.tts, ...partial.tts },
       voiceReply: { ...this.config.voiceReply, ...partial.voiceReply },
+      friendRequest: { ...this.config.friendRequest, ...partial.friendRequest },
       auth: { ...this.config.auth, ...partial.auth },
       log: { ...this.config.log, ...partial.log },
     }

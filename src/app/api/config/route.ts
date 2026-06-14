@@ -53,6 +53,10 @@ export async function POST(request: NextRequest) {
       safePartial.voiceReply = body.voiceReply
     }
 
+    if (body.friendRequest) {
+      safePartial.friendRequest = body.friendRequest
+    }
+
     if (body.auth) {
       const auth = body.auth as Record<string, unknown>
       // Only include auth if token is not masked

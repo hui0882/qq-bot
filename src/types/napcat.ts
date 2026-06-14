@@ -209,6 +209,9 @@ export interface PlatformConfig {
   voiceReply: {
     mode: 'off' | 'always' | 'auto'
   }
+  friendRequest: {
+    mode: 'auto' | 'manual'
+  }
   log: {
     maxEntries: number
     persistToFile: boolean
