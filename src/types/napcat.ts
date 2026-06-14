@@ -208,6 +208,7 @@ export interface PlatformConfig {
   }
   voiceReply: {
     mode: 'off' | 'always' | 'auto'
+    allowUserOverride: boolean
   }
   friendRequest: {
     mode: 'auto' | 'manual'

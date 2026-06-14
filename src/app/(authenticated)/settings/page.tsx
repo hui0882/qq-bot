@@ -7,7 +7,7 @@ interface Config {
   ws: { url: string; token: string; reconnect: boolean; reconnectInterval: number; maxReconnectInterval: number }
   api: { url: string; token: string }
   tts: { enabled: boolean; apiUrl: string; apiKey: string; model: string; voice: string; style: string; format: string }
-  voiceReply: { mode: 'off' | 'always' | 'auto' }
+  voiceReply: { mode: 'off' | 'always' | 'auto'; allowUserOverride: boolean }
   friendRequest: { mode: 'auto' | 'manual' }
   auth: { token: string }
   log: { maxEntries: number; persistToFile: boolean; logDir: string }
@@ -136,13 +136,29 @@ export default function SettingsPage() {
       <div className="rounded-lg border p-6 space-y-4">
         <h2 className="text-lg font-semibold">语音回复</h2>
         <p className="text-sm text-muted-foreground">收到私聊消息时的回复方式</p>
-        <div className="flex gap-3">
+
+        {/* Allow user override toggle */}
+        <label className="flex items-center gap-3 rounded-lg border px-4 py-3 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={config.voiceReply?.allowUserOverride || false}
+            onChange={(e) => setConfig({ ...config, voiceReply: { ...config.voiceReply, allowUserOverride: e.target.checked } })}
+            className="h-4 w-4"
+          />
+          <div>
+            <div className="text-sm font-medium">允许用户自定义</div>
+            <div className="text-xs text-muted-foreground">用户可通过 /response-type 命令自行设置回复模式</div>
+          </div>
+        </label>
+
+        {/* Mode selector — grayed out when user override is on */}
+        <div className={`flex gap-3 ${config.voiceReply?.allowUserOverride ? 'opacity-40 pointer-events-none' : ''}`}>
           <label className={`flex items-center gap-2 rounded-lg border-2 px-4 py-3 cursor-pointer transition-colors ${config.voiceReply?.mode === 'off' ? 'border-primary bg-primary/5' : 'border-muted hover:border-muted-foreground/30'}`}>
-            <input type="radio" name="voiceReply" value="off" checked={config.voiceReply?.mode === 'off'} onChange={() => setConfig({ ...config, voiceReply: { mode: 'off' } })} className="h-4 w-4" />
+            <input type="radio" name="voiceReply" value="off" checked={config.voiceReply?.mode === 'off'} onChange={() => setConfig({ ...config, voiceReply: { ...config.voiceReply, mode: 'off' } })} className="h-4 w-4" />
             <div><div className="text-sm font-medium">关闭</div><div className="text-xs text-muted-foreground">文本回复</div></div>
           </label>
           <label className={`flex items-center gap-2 rounded-lg border-2 px-4 py-3 cursor-pointer transition-colors ${config.voiceReply?.mode === 'always' ? 'border-primary bg-primary/5' : 'border-muted hover:border-muted-foreground/30'}`}>
-            <input type="radio" name="voiceReply" value="always" checked={config.voiceReply?.mode === 'always'} onChange={() => setConfig({ ...config, voiceReply: { mode: 'always' } })} className="h-4 w-4" />
+            <input type="radio" name="voiceReply" value="always" checked={config.voiceReply?.mode === 'always'} onChange={() => setConfig({ ...config, voiceReply: { ...config.voiceReply, mode: 'always' } })} className="h-4 w-4" />
             <div><div className="text-sm font-medium">始终语音回复</div><div className="text-xs text-muted-foreground">消息转语音</div></div>
           </label>
           <label className="flex items-center gap-2 rounded-lg border-2 border-muted px-4 py-3 opacity-50 cursor-not-allowed" title="需要接入大语言模型后可用">
@@ -150,6 +166,10 @@ export default function SettingsPage() {
             <div><div className="text-sm font-medium">自动</div><div className="text-xs text-muted-foreground">AI 判断</div></div>
           </label>
         </div>
+
+        {config.voiceReply?.allowUserOverride && (
+          <p className="text-xs text-amber-600">⚠️ 用户自定义已开启，全局回复模式设置已禁用</p>
+        )}
         <p className="text-xs text-muted-foreground">音色: {config.tts?.voice || '茉莉'} · 风格: {config.tts?.style || '温柔'}</p>
       </div>
 

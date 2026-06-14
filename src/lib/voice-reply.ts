@@ -1,9 +1,11 @@
 // src/lib/voice-reply.ts
-// Auto-reply handler: text echo or voice reply based on config
+// Message handler: commands, text echo, voice reply
 
 import { textToSpeech } from './tts'
 import { napcatApi } from './napcat-api'
 import { configManager } from './config'
+import { getUserResponseType } from './user-config'
+import { handleCommand } from './command-handler'
 import { logger } from './logger'
 import { readFileSync, unlinkSync } from 'fs'
 
@@ -24,11 +26,71 @@ function extractText(event: Record<string, unknown>): string | null {
   return text.length > 500 ? text.slice(0, 500) + '...' : text
 }
 
-export async function handleVoiceReply(event: Record<string, unknown>): Promise<void> {
+function getEffectiveMode(userId: number): 'off' | 'always' | 'auto' {
   const config = configManager.getConfig()
-  const mode = config.voiceReply?.mode || 'off'
-  if (mode === 'auto') return // Not implemented yet
+  const globalMode = config.voiceReply?.mode || 'off'
 
+  // If user override is allowed, check per-user config
+  if (config.voiceReply?.allowUserOverride) {
+    const userMode = getUserResponseType(userId)
+    if (userMode === 'voice') return 'always'
+    if (userMode === 'text') return 'off'
+    if (userMode === 'auto') return 'auto'
+  }
+
+  return globalMode
+}
+
+async function sendTextReply(userId: number, text: string): Promise<void> {
+  const result = await napcatApi.sendAction('send_msg', {
+    message_type: 'private',
+    user_id: String(userId),
+    message: [{ type: 'text', data: { text } }],
+  })
+  if (result.status === 'ok') {
+    logger.logSystem('TextReply: sent', { userId })
+  } else {
+    logger.logSystem('TextReply: failed', { error: result.message })
+  }
+}
+
+async function sendVoiceReply(userId: number, text: string): Promise<void> {
+  const config = configManager.getConfig()
+  if (!config.tts?.enabled) return
+
+  logger.logSystem('VoiceReply: processing', { userId, text: text.slice(0, 50) })
+
+  const ttsResult = await textToSpeech(text)
+  if (!ttsResult.success || !ttsResult.audioPath) {
+    logger.logSystem('VoiceReply: TTS failed', { error: ttsResult.error })
+    return
+  }
+
+  try {
+    const audioBuffer = readFileSync(ttsResult.audioPath)
+    const base64Audio = audioBuffer.toString('base64')
+    const format = config.tts.format || 'wav'
+    const mimeType = format === 'mp3' ? 'audio/mpeg' : `audio/${format}`
+
+    const result = await napcatApi.sendAction('send_msg', {
+      message_type: 'private',
+      user_id: String(userId),
+      message: [{ type: 'record', data: { file: `data:${mimeType};base64,${base64Audio}` } }],
+    })
+
+    if (result.status === 'ok') {
+      logger.logSystem('VoiceReply: sent', { userId })
+    } else {
+      logger.logSystem('VoiceReply: send failed', { error: result.message })
+    }
+  } catch (err) {
+    logger.logSystem('VoiceReply: error', { error: (err as Error).message })
+  } finally {
+    try { unlinkSync(ttsResult.audioPath) } catch { /* ignore */ }
+  }
+}
+
+export async function handleVoiceReply(event: Record<string, unknown>): Promise<void> {
   const postType = event.post_type as string
   if (postType !== 'message') return
 
@@ -36,8 +98,17 @@ export async function handleVoiceReply(event: Record<string, unknown>): Promise<
   const messageType = event.message_type as string
   if (userId === 0 || messageType !== 'private') return
 
+  // Check if it's a command
   const textContent = extractText(event)
   if (!textContent) return
+
+  if (textContent.trim().startsWith('/')) {
+    await handleCommand(event)
+    return
+  }
+
+  // Not a command — apply response mode
+  const mode = getEffectiveMode(userId)
 
   // Debounce
   const now = Date.now()
@@ -45,52 +116,9 @@ export async function handleVoiceReply(event: Record<string, unknown>): Promise<
   lastReplyTime.set(userId, now)
 
   if (mode === 'off') {
-    // Text echo mode
-    logger.logSystem('TextReply: echoing', { userId, text: textContent.slice(0, 50) })
-    const result = await napcatApi.sendAction('send_msg', {
-      message_type: 'private',
-      user_id: String(userId),
-      message: [{ type: 'text', data: { text: textContent } }],
-    })
-    if (result.status === 'ok') {
-      logger.logSystem('TextReply: sent', { userId })
-    } else {
-      logger.logSystem('TextReply: failed', { error: result.message })
-    }
-    return
+    await sendTextReply(userId, textContent)
+  } else if (mode === 'always') {
+    await sendVoiceReply(userId, textContent)
   }
-
-  if (mode === 'always') {
-    if (!config.tts?.enabled) return
-    logger.logSystem('VoiceReply: processing', { userId, text: textContent.slice(0, 50) })
-
-    const ttsResult = await textToSpeech(textContent)
-    if (!ttsResult.success || !ttsResult.audioPath) {
-      logger.logSystem('VoiceReply: TTS failed', { error: ttsResult.error })
-      return
-    }
-
-    try {
-      const audioBuffer = readFileSync(ttsResult.audioPath)
-      const base64Audio = audioBuffer.toString('base64')
-      const format = config.tts.format || 'wav'
-      const mimeType = format === 'mp3' ? 'audio/mpeg' : `audio/${format}`
-
-      const result = await napcatApi.sendAction('send_msg', {
-        message_type: 'private',
-        user_id: String(userId),
-        message: [{ type: 'record', data: { file: `data:${mimeType};base64,${base64Audio}` } }],
-      })
-
-      if (result.status === 'ok') {
-        logger.logSystem('VoiceReply: sent', { userId })
-      } else {
-        logger.logSystem('VoiceReply: send failed', { error: result.message })
-      }
-    } catch (err) {
-      logger.logSystem('VoiceReply: error', { error: (err as Error).message })
-    } finally {
-      try { unlinkSync(ttsResult.audioPath) } catch { /* ignore */ }
-    }
-  }
+  // 'auto' — not implemented yet
 }
