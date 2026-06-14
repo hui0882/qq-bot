@@ -9,7 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "chokidar": "^4.0.0",
+    "chokidar": "^5.0.0",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.0",
     "lucide-react": "^0.460.0",
