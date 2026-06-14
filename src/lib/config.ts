@@ -17,6 +17,18 @@ const DEFAULT_CONFIG: PlatformConfig = {
     url: 'http://115.190.250.31:3000',
     token: '',
   },
+  tts: {
+    enabled: false,
+    apiUrl: 'https://api.xiaomimimo.com/v1/chat/completions',
+    apiKey: '',
+    model: 'mimo-v2.5-tts',
+    voice: '茉莉',
+    style: '温柔',
+    format: 'wav',
+  },
+  voiceReply: {
+    enabled: false,
+  },
   auth: {
     token: 'napcat-admin-token',
   },
@@ -52,6 +64,8 @@ class ConfigManager {
       return {
         ws: { ...DEFAULT_CONFIG.ws, ...parsed.ws },
         api: { ...DEFAULT_CONFIG.api, ...parsed.api },
+        tts: { ...DEFAULT_CONFIG.tts, ...parsed.tts },
+        voiceReply: { ...DEFAULT_CONFIG.voiceReply, ...parsed.voiceReply },
         auth: { ...DEFAULT_CONFIG.auth, ...parsed.auth },
         log: { ...DEFAULT_CONFIG.log, ...parsed.log },
       }
@@ -86,6 +100,9 @@ class ConfigManager {
     if (old.ws.reconnect !== curr.ws.reconnect) keys.push('ws.reconnect')
     if (old.api?.url !== curr.api?.url) keys.push('api.url')
     if (old.api?.token !== curr.api?.token) keys.push('api.token')
+    if (old.tts?.apiKey !== curr.tts?.apiKey) keys.push('tts.apiKey')
+    if (old.tts?.enabled !== curr.tts?.enabled) keys.push('tts.enabled')
+    if (old.voiceReply?.enabled !== curr.voiceReply?.enabled) keys.push('voiceReply.enabled')
     if (old.auth.token !== curr.auth.token) keys.push('auth.token')
     if (old.log.maxEntries !== curr.log.maxEntries) keys.push('log.maxEntries')
     if (old.log.persistToFile !== curr.log.persistToFile) keys.push('log.persistToFile')
@@ -100,6 +117,8 @@ class ConfigManager {
     this.config = {
       ws: { ...this.config.ws, ...partial.ws },
       api: { ...this.config.api, ...partial.api },
+      tts: { ...this.config.tts, ...partial.tts },
+      voiceReply: { ...this.config.voiceReply, ...partial.voiceReply },
       auth: { ...this.config.auth, ...partial.auth },
       log: { ...this.config.log, ...partial.log },
     }
@@ -118,6 +137,7 @@ class ConfigManager {
       ...this.config,
       ws: { ...this.config.ws, token: this.config.ws.token ? '***' : '' },
       api: { ...this.config.api, token: this.config.api?.token ? '***' : '' },
+      tts: { ...this.config.tts, apiKey: this.config.tts?.apiKey ? '***' : '' },
       auth: { token: '***' },
     }
   }
