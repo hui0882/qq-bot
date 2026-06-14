@@ -194,8 +194,20 @@ export interface PlatformConfig {
     url: string
     token: string
   }
+  tts: {
+    enabled: boolean
+    apiUrl: string
+    apiKey: string
+    model: string
+    voice: string
+    style: string
+    format: 'wav' | 'mp3'
+  }
   auth: {
     token: string
+  }
+  voiceReply: {
+    enabled: boolean
   }
   log: {
     maxEntries: number

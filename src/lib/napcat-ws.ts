@@ -4,6 +4,7 @@ import { v4 as uuidv4 } from 'uuid'
 import type { OB11ActionResponse, WSConnectionStatus } from '@/types/napcat'
 import { configManager } from './config'
 import { logger } from './logger'
+import { handleVoiceReply } from './voice-reply'
 
 type ResponseCallback = (response: OB11ActionResponse) => void
 type EventCallback = (event: Record<string, unknown>) => void
@@ -93,6 +94,7 @@ class NapCatWSClient {
               for (const cb of this.eventCallbacks) {
                 cb(msg)
               }
+              handleVoiceReply(msg)
             }
           } else {
             // It's an event
@@ -100,6 +102,7 @@ class NapCatWSClient {
             for (const cb of this.eventCallbacks) {
               cb(msg)
             }
+            handleVoiceReply(msg)
           }
         } catch {
           logger.logSystem('Failed to parse WS message', { raw: data.toString().slice(0, 200) })
