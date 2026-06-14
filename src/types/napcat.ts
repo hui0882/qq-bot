@@ -207,7 +207,7 @@ export interface PlatformConfig {
     token: string
   }
   voiceReply: {
-    enabled: boolean
+    mode: 'off' | 'always' | 'auto'
   }
   log: {
     maxEntries: number

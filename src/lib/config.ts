@@ -27,7 +27,7 @@ const DEFAULT_CONFIG: PlatformConfig = {
     format: 'wav',
   },
   voiceReply: {
-    enabled: false,
+    mode: 'off',
   },
   auth: {
     token: 'napcat-admin-token',
@@ -102,7 +102,7 @@ class ConfigManager {
     if (old.api?.token !== curr.api?.token) keys.push('api.token')
     if (old.tts?.apiKey !== curr.tts?.apiKey) keys.push('tts.apiKey')
     if (old.tts?.enabled !== curr.tts?.enabled) keys.push('tts.enabled')
-    if (old.voiceReply?.enabled !== curr.voiceReply?.enabled) keys.push('voiceReply.enabled')
+    if (old.voiceReply?.mode !== curr.voiceReply?.mode) keys.push('voiceReply.mode')
     if (old.auth.token !== curr.auth.token) keys.push('auth.token')
     if (old.log.maxEntries !== curr.log.maxEntries) keys.push('log.maxEntries')
     if (old.log.persistToFile !== curr.log.persistToFile) keys.push('log.persistToFile')
@@ -132,14 +132,9 @@ class ConfigManager {
     }
   }
 
-  getMaskedConfig(): Omit<PlatformConfig, 'auth'> & { auth: { token: string } } {
-    return {
-      ...this.config,
-      ws: { ...this.config.ws, token: this.config.ws.token ? '***' : '' },
-      api: { ...this.config.api, token: this.config.api?.token ? '***' : '' },
-      tts: { ...this.config.tts, apiKey: this.config.tts?.apiKey ? '***' : '' },
-      auth: { token: '***' },
-    }
+  getMaskedConfig(): PlatformConfig {
+    // Return full config — frontend handles masking and reveal
+    return { ...this.config }
   }
 
   validateToken(token: string): boolean {
