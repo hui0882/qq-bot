@@ -348,8 +348,8 @@ export default function DebuggerPage() {
 
               {/* Param fields */}
               {selectedAction.params.length > 0 && (
-                <div className="space-y-3 rounded-lg border p-4">
-                  <div className="flex items-center justify-between">
+                <div className="rounded-lg border">
+                  <div className="flex items-center justify-between border-b px-4 py-2">
                     <h3 className="text-sm font-medium">参数</h3>
                     <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
                       <input
@@ -362,83 +362,91 @@ export default function DebuggerPage() {
                     </label>
                   </div>
 
-                  {selectedAction.params.map((p) => {
-                    const isRequired = p.required
-                    const isIncluded = isRequired || includedOptional[p.key]
+                  <div className="divide-y">
+                    {selectedAction.params.map((p) => {
+                      const isRequired = p.required
+                      const isIncluded = isRequired || includedOptional[p.key]
 
-                    return (
-                      <div key={p.key} className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          {!isRequired && (
+                      return (
+                        <div key={p.key} className={`flex items-start gap-3 px-4 py-3 ${!isIncluded ? 'opacity-50' : ''}`}>
+                          {/* Checkbox */}
+                          <div className="pt-0.5">
                             <input
                               type="checkbox"
-                              checked={!!includedOptional[p.key]}
+                              checked={isIncluded}
+                              disabled={isRequired}
                               onChange={(e) => setIncludedOptional({ ...includedOptional, [p.key]: e.target.checked })}
-                              className="h-3.5 w-3.5"
+                              className={`h-4 w-4 ${isRequired ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}
                             />
-                          )}
-                          <label className={`text-sm font-medium ${!isIncluded ? 'text-muted-foreground' : ''}`}>
-                            {p.label}
-                            {isRequired && <span className="ml-1 text-destructive">*</span>}
-                          </label>
-                          <span className="text-xs text-muted-foreground font-mono">{p.key}</span>
-                        </div>
+                          </div>
 
-                        {isIncluded && (
-                          <>
-                            {p.type === 'select' ? (
-                              <select
-                                value={String(formValues[p.key] ?? p.default)}
-                                onChange={(e) => setFormValues({ ...formValues, [p.key]: e.target.value })}
-                                className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
-                              >
-                                {p.options?.map((o) => (
-                                  <option key={o.value} value={o.value}>{o.label}</option>
-                                ))}
-                              </select>
-                            ) : p.type === 'boolean' ? (
-                              <label className="flex items-center gap-2 text-sm">
-                                <input
-                                  type="checkbox"
-                                  checked={!!formValues[p.key]}
-                                  onChange={(e) => setFormValues({ ...formValues, [p.key]: e.target.checked })}
-                                  className="h-4 w-4"
-                                />
-                                {p.description || p.label}
+                          {/* Label + Input */}
+                          <div className="flex-1 min-w-0 space-y-1.5">
+                            <div className="flex items-center gap-2">
+                              <label className={`text-sm font-medium leading-none ${!isIncluded ? 'text-muted-foreground' : ''}`}>
+                                {p.label}
                               </label>
-                            ) : p.type === 'textarea' ? (
-                              <textarea
-                                value={String(formValues[p.key] ?? '')}
-                                onChange={(e) => setFormValues({ ...formValues, [p.key]: e.target.value })}
-                                placeholder={p.placeholder}
-                                rows={3}
-                                className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                              />
-                            ) : p.type === 'number' ? (
-                              <input
-                                type="number"
-                                value={String(formValues[p.key] ?? '')}
-                                onChange={(e) => setFormValues({ ...formValues, [p.key]: Number(e.target.value) || 0 })}
-                                placeholder={p.placeholder}
-                                className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
-                              />
-                            ) : (
-                              <input
-                                type="text"
-                                value={String(formValues[p.key] ?? '')}
-                                onChange={(e) => setFormValues({ ...formValues, [p.key]: e.target.value })}
-                                placeholder={p.placeholder}
-                                className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
-                              />
+                              <span className="text-xs text-muted-foreground font-mono">{p.key}</span>
+                              {isRequired && <span className="rounded bg-destructive/10 px-1.5 py-0.5 text-xs text-destructive">必填</span>}
+                            </div>
+
+                            {isIncluded && (
+                              <>
+                                {p.type === 'select' ? (
+                                  <select
+                                    value={String(formValues[p.key] ?? p.default)}
+                                    onChange={(e) => setFormValues({ ...formValues, [p.key]: e.target.value })}
+                                    className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
+                                  >
+                                    {p.options?.map((o) => (
+                                      <option key={o.value} value={o.value}>{o.label}</option>
+                                    ))}
+                                  </select>
+                                ) : p.type === 'boolean' ? (
+                                  <label className="flex items-center gap-2 text-sm cursor-pointer">
+                                    <input
+                                      type="checkbox"
+                                      checked={!!formValues[p.key]}
+                                      onChange={(e) => setFormValues({ ...formValues, [p.key]: e.target.checked })}
+                                      className="h-4 w-4"
+                                    />
+                                    {p.description || p.label}
+                                  </label>
+                                ) : p.type === 'textarea' ? (
+                                  <textarea
+                                    value={String(formValues[p.key] ?? '')}
+                                    onChange={(e) => setFormValues({ ...formValues, [p.key]: e.target.value })}
+                                    placeholder={p.placeholder}
+                                    rows={3}
+                                    className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                                  />
+                                ) : p.type === 'number' ? (
+                                  <input
+                                    type="number"
+                                    value={String(formValues[p.key] ?? '')}
+                                    onChange={(e) => setFormValues({ ...formValues, [p.key]: Number(e.target.value) || 0 })}
+                                    placeholder={p.placeholder}
+                                    className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
+                                  />
+                                ) : (
+                                  <input
+                                    type="text"
+                                    value={String(formValues[p.key] ?? '')}
+                                    onChange={(e) => setFormValues({ ...formValues, [p.key]: e.target.value })}
+                                    placeholder={p.placeholder}
+                                    className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
+                                  />
+                                )}
+                                {p.description && p.type !== 'boolean' && (
+                                  <p className="text-xs text-muted-foreground">{p.description}</p>
+                                )}
+                              </>
                             )}
-                            {p.description && !p.type.includes('boolean') && (
-                              <p className="text-xs text-muted-foreground">{p.description}</p>
-                            )}
-                          </>
-                        )}
-                      </div>
-                    )
-                  })}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
                 </div>
               )}
 
