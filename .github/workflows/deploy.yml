@@ -21,24 +21,27 @@ jobs:
           port: ${{ secrets.DEPLOY_PORT || '22' }}
           script_stop: true
           script: |
+            # 展开 ~ 为实际 home 目录
             DEPLOY_DIR="${{ secrets.DEPLOY_PATH }}"
+            DEPLOY_DIR="${DEPLOY_DIR/#\~/$HOME}"
 
             echo "部署目录: $DEPLOY_DIR"
 
-            # 如果目录不存在，首次克隆
+            # 如果目录不存在或不是 git 仓库，首次克隆
             if [ ! -d "$DEPLOY_DIR/.git" ]; then
               echo "首次部署，克隆仓库..."
-              mkdir -p "$(dirname "$DEPLOY_DIR")"
-              rm -rf "$DEPLOY_DIR"
-              git clone https://github.com/hui0882/qq-bot.git "$DEPLOY_DIR"
+              mkdir -p "$DEPLOY_DIR"
+              cd "$DEPLOY_DIR"
+              git init
+              git remote add origin https://github.com/hui0882/qq-bot.git
+              git fetch origin main
+              git checkout -b main origin/main
+            else
+              cd "$DEPLOY_DIR"
+              echo "拉取最新代码..."
+              git fetch origin main
+              git reset --hard origin/main
             fi
-
-            cd "$DEPLOY_DIR"
-
-            # 拉取最新代码
-            echo "拉取最新代码..."
-            git fetch origin main
-            git reset --hard origin/main
 
             # 安装依赖
             echo "安装依赖..."
