@@ -21,7 +21,7 @@ jobs:
           port: ${{ secrets.DEPLOY_PORT || '22' }}
           script_stop: true
           script: |
-            DEPLOY_DIR="$HOME/qq_bot"
+            DEPLOY_DIR="${{ secrets.DEPLOY_PATH }}"
 
             echo "部署目录: $DEPLOY_DIR"
 
