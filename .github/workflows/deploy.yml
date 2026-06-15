@@ -12,23 +12,6 @@ jobs:
     if: github.ref == 'refs/heads/main'
 
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build
-        run: npm run build
-        env:
-          # Build-time env vars if needed
-          NODE_ENV: production
-
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1
         with:
@@ -37,8 +20,42 @@ jobs:
           key: ${{ secrets.DEPLOY_KEY }}
           port: ${{ secrets.DEPLOY_PORT || 22 }}
           script: |
-            cd ${{ secrets.DEPLOY_PATH || '/opt/napcat-platform' }}
-            git pull origin main
-            npm ci --production
+            # 如果目录不存在，首次克隆
+            if [ ! -d "${{ secrets.DEPLOY_PATH }}" ]; then
+              echo "首次部署，克隆仓库..."
+              mkdir -p $(dirname ${{ secrets.DEPLOY_PATH }})
+              cd $(dirname ${{ secrets.DEPLOY_PATH }})
+              git clone https://github.com/hui0882/qq-bot.git $(basename ${{ secrets.DEPLOY_PATH }})
+            fi
+
+            cd ${{ secrets.DEPLOY_PATH }}
+
+            # 拉取最新代码
+            echo "拉取最新代码..."
+            git fetch origin main
+            git reset --hard origin/main
+
+            # 安装依赖
+            echo "安装依赖..."
+            npm ci
+
+            # 写入配置文件
+            echo "写入配置..."
+            mkdir -p data
+            echo '${{ secrets.CONFIG_JSON }}' > data/config.json
+
+            # 构建
+            echo "构建项目..."
             npm run build
-            pm2 restart napcat-platform || pm2 start npm --name napcat-platform -- start
+
+            # 启动/重启服务
+            if pm2 list | grep -q "napcat-platform"; then
+              echo "重启服务..."
+              pm2 restart napcat-platform
+            else
+              echo "首次启动服务..."
+              pm2 start npm --name napcat-platform -- start
+              pm2 save
+            fi
+
+            echo "部署完成 ✅"
