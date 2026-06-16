@@ -1,5 +1,5 @@
 // src/lib/napcat-ws.ts
-import WebSocket from 'ws'
+// 使用 Node.js 内置 WebSocket API，避免 ws 库兼容性问题
 import { v4 as uuidv4 } from 'uuid'
 import type { OB11ActionResponse, WSConnectionStatus } from '@/types/napcat'
 import { configManager } from './config'
@@ -48,25 +48,26 @@ class NapCatWSClient {
     }
 
     try {
+      // 使用全局 WebSocket（Node.js 22+ 内置）
       this.ws = new WebSocket(wsUrl)
 
-      this.ws.on('open', () => {
+      this.ws.onopen = () => {
         this.status = 'connected'
         this.connectedAt = Date.now()
         this.reconnectAttempts = 0
         this.reconnectCount++
         this.setStatus('connected')
         logger.logSystem(`WebSocket connected to ${config.ws.url}`)
-      })
+      }
 
-      this.ws.on('message', (data: WebSocket.Data) => {
+      this.ws.onmessage = (event: MessageEvent) => {
         try {
-          const msg = JSON.parse(data.toString()) as Record<string, unknown>
-          const rawStr = data.toString()
+          const data = typeof event.data === 'string' ? event.data : String(event.data)
+          const msg = JSON.parse(data) as Record<string, unknown>
 
-          // Log raw message for debugging (truncated)
+          // Log raw message for debugging
           logger.logSystem('WS received', {
-            preview: rawStr.length > 200 ? rawStr.slice(0, 200) + '...' : rawStr,
+            preview: data.length > 200 ? data.slice(0, 200) + '...' : data,
             hasEcho: !!msg.echo,
             hasStatus: !!msg.status,
             postType: msg.post_type,
@@ -81,56 +82,43 @@ class NapCatWSClient {
               const response = msg as unknown as OB11ActionResponse
               logger.logResponse(msg.echo, response, response.status === 'ok')
               pending.resolve(response)
-            } else {
-              // Got a response with echo but no pending request
-              logger.logSystem('Received response with unknown echo', { echo: msg.echo })
             }
           } else if (msg.status && msg.retcode !== undefined) {
-            // Looks like a response but missing echo - try to match by action
+            // Looks like a response but missing echo
             const response = msg as unknown as OB11ActionResponse
             const matched = this.tryMatchResponseByAction(response)
             if (!matched) {
-              // Treat as event
               logger.logEvent(msg)
-              for (const cb of this.eventCallbacks) {
-                cb(msg)
-              }
+              for (const cb of this.eventCallbacks) { cb(msg) }
               handleVoiceReply(msg)
               handleFriendRequestEvent(msg)
             }
           } else {
             // It's an event
             logger.logEvent(msg)
-            for (const cb of this.eventCallbacks) {
-              cb(msg)
-            }
+            for (const cb of this.eventCallbacks) { cb(msg) }
             handleVoiceReply(msg)
+            handleFriendRequestEvent(msg)
           }
         } catch {
-          logger.logSystem('Failed to parse WS message', { raw: data.toString().slice(0, 200) })
+          logger.logSystem('Failed to parse WS message', { raw: String(event.data).slice(0, 200) })
         }
-      })
+      }
 
-      this.ws.on('close', (code: number, reason: Buffer) => {
+      this.ws.onclose = (event: CloseEvent) => {
         this.setStatus('disconnected')
         this.connectedAt = null
-        const reasonStr = reason?.toString() || ''
-        const msg = code === 1006
+        const msg = event.code === 1006
           ? 'WebSocket connection failed (server unreachable or auth rejected)'
-          : `WebSocket closed (code: ${code}${reasonStr ? `, reason: ${reasonStr}` : ''})`
-        logger.logSystem(msg, { code, reason: reasonStr })
+          : `WebSocket closed (code: ${event.code}${event.reason ? `, reason: ${event.reason}` : ''})`
+        logger.logSystem(msg, { code: event.code, reason: event.reason })
         this.scheduleReconnect()
-      })
+      }
 
-      this.ws.on('error', (err: Error) => {
+      this.ws.onerror = () => {
         this.setStatus('error')
-        const msg = err.message.includes('ECONNREFUSED')
-          ? `Connection refused: ${config.ws.url}`
-          : err.message.includes('401') || err.message.includes('403')
-            ? `Authentication failed - check WS token`
-            : `WebSocket error: ${err.message}`
-        logger.logSystem(msg, { error: err.message })
-      })
+        logger.logSystem('WebSocket error', { url: config.ws.url })
+      }
     } catch (err) {
       this.setStatus('error')
       logger.logSystem('Failed to create WebSocket', { error: (err as Error).message })
@@ -138,13 +126,9 @@ class NapCatWSClient {
     }
   }
 
-  // Try to match a response that has status/retcode but no echo
   private tryMatchResponseByAction(response: OB11ActionResponse): boolean {
-    // Find the oldest pending request
     const entries = Array.from(this.pendingRequests.entries())
     if (entries.length === 0) return false
-
-    // Match the first pending request (FIFO)
     const [echo, pending] = entries[0]
     clearTimeout(pending.timer)
     this.pendingRequests.delete(echo)
@@ -177,7 +161,10 @@ class NapCatWSClient {
       this.reconnectTimer = null
     }
     if (this.ws) {
-      this.ws.removeAllListeners()
+      this.ws.onopen = null
+      this.ws.onmessage = null
+      this.ws.onclose = null
+      this.ws.onerror = null
       this.ws.close()
       this.ws = null
     }
@@ -187,9 +174,7 @@ class NapCatWSClient {
 
   private setStatus(status: WSConnectionStatus): void {
     this.status = status
-    for (const cb of this.statusCallbacks) {
-      cb(status)
-    }
+    for (const cb of this.statusCallbacks) { cb(status) }
   }
 
   async sendAction(action: string, params: Record<string, unknown> = {}): Promise<OB11ActionResponse> {
@@ -215,30 +200,20 @@ class NapCatWSClient {
     })
   }
 
-  getStatus(): WSConnectionStatus {
-    return this.status
-  }
+  getStatus(): WSConnectionStatus { return this.status }
 
   getConnectionInfo(): { status: WSConnectionStatus; connectedAt: number | null; reconnectCount: number } {
-    return {
-      status: this.status,
-      connectedAt: this.connectedAt,
-      reconnectCount: this.reconnectCount,
-    }
+    return { status: this.status, connectedAt: this.connectedAt, reconnectCount: this.reconnectCount }
   }
 
   onEvent(callback: EventCallback): () => void {
     this.eventCallbacks.push(callback)
-    return () => {
-      this.eventCallbacks = this.eventCallbacks.filter((cb) => cb !== callback)
-    }
+    return () => { this.eventCallbacks = this.eventCallbacks.filter((cb) => cb !== callback) }
   }
 
   onStatusChange(callback: StatusCallback): () => void {
     this.statusCallbacks.push(callback)
-    return () => {
-      this.statusCallbacks = this.statusCallbacks.filter((cb) => cb !== callback)
-    }
+    return () => { this.statusCallbacks = this.statusCallbacks.filter((cb) => cb !== callback) }
   }
 }
 

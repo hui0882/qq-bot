@@ -1,6 +1,6 @@
 // src/app/api/ws/route.ts
 import { NextRequest, NextResponse } from 'next/server'
-import { napcatApi } from '@/lib/napcat-api'
+import { napcatWS } from '@/lib/napcat-ws'
 import { logger } from '@/lib/logger'
 import { validateAuth } from '@/lib/auth'
 
@@ -40,9 +40,11 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const result = await napcatApi.sendAction(action, params || {})
+    // 通过 WS 连接发送 API 请求
+    const result = await napcatWS.sendAction(action, params || {})
     return NextResponse.json(result)
-  } catch {
-    return NextResponse.json({ success: false, message: 'Invalid request' }, { status: 400 })
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'Unknown error'
+    return NextResponse.json({ success: false, message: `Invalid request: ${msg}` }, { status: 400 })
   }
 }

@@ -96,34 +96,15 @@ export default function SettingsPage() {
       return
     }
 
-    // Step 2: Test HTTP API directly
-    const apiUrl = config.api?.url || ''
-    if (!apiUrl) {
-      setTestResult({ status: 'partial', message: '⚠️ WS 已连接，但未配置 HTTP API 地址' })
-      return
-    }
-
+    // Step 2: Test API via WS proxy
     try {
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-      if (config.api?.token) headers['Authorization'] = `Bearer ${config.api.token}`
-
-      const res = await fetch(`${apiUrl}/get_login_info`, {
+      const res = await fetch('/api/ws', {
         method: 'POST',
-        headers,
-        body: JSON.stringify({}),
-        signal: AbortSignal.timeout(5000),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'get_login_info' }),
       })
-
-      if (!res.ok) {
-        const errText = await res.text().catch(() => '')
-        setTestResult({
-          status: 'partial',
-          message: `⚠️ WS 已连接，但 HTTP API 返回错误: ${res.status} ${errText.slice(0, 100)}`,
-        })
-        return
-      }
-
       const data = await res.json()
+
       if (data.status === 'ok' && data.data?.user_id) {
         setTestResult({
           status: 'success',
@@ -132,13 +113,13 @@ export default function SettingsPage() {
       } else {
         setTestResult({
           status: 'partial',
-          message: `⚠️ WS 已连接，但 API 返回异常: ${JSON.stringify(data).slice(0, 100)}`,
+          message: `⚠️ WS 已连接，但无法获取数据: ${data.message || '未知错误'}`,
         })
       }
     } catch (err) {
       setTestResult({
         status: 'partial',
-        message: `⚠️ WS 已连接，但 HTTP API 无法访问: ${(err as Error).message}`,
+        message: `⚠️ WS 已连接，但 API 请求失败: ${(err as Error).message}`,
       })
     }
   }
