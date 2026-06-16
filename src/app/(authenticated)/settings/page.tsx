@@ -13,6 +13,11 @@ interface Config {
   log: { maxEntries: number; persistToFile: boolean; logDir: string }
 }
 
+interface TestResult {
+  status: 'idle' | 'testing' | 'success' | 'partial' | 'error'
+  message: string
+}
+
 function MaskedInput({ value, onChange, placeholder }: { value: string; onChange: (v: string) => void; placeholder?: string }) {
   const [revealed, setRevealed] = useState(false)
   const masked = value ? '•'.repeat(Math.min(value.length, 20)) : ''
@@ -43,6 +48,7 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
+  const [testResult, setTestResult] = useState<TestResult>({ status: 'idle', message: '' })
 
   useEffect(() => {
     fetch('/api/config')
@@ -67,18 +73,56 @@ export default function SettingsPage() {
     setSaving(false)
   }
 
-  const handleTestConnection = () => {
+  const handleTestConnection = async () => {
     if (!config) return
-    setMessage('测试中...')
+    setTestResult({ status: 'testing', message: '测试中...' })
+
+    // Step 1: Test WS connection
+    let wsConnected = false
     let testUrl = config.ws.url
     if (config.ws.token) {
       const sep = testUrl.includes('?') ? '&' : '?'
       testUrl = `${testUrl}${sep}access_token=${encodeURIComponent(config.ws.token)}`
     }
-    const testWs = new WebSocket(testUrl)
-    testWs.onopen = () => { setMessage('连接成功!'); testWs.close() }
-    testWs.onerror = () => setMessage('连接失败')
-    setTimeout(() => { if (testWs.readyState !== WebSocket.OPEN) { testWs.close(); setMessage('连接超时') } }, 5000)
+
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const ws = new WebSocket(testUrl)
+        const timeout = setTimeout(() => { ws.close(); reject(new Error('超时')) }, 5000)
+        ws.onopen = () => { clearTimeout(timeout); wsConnected = true; ws.close(); resolve() }
+        ws.onerror = () => { clearTimeout(timeout); reject(new Error('连接失败')) }
+      })
+    } catch (err) {
+      setTestResult({ status: 'error', message: `❌ WS 连接失败: ${(err as Error).message}` })
+      return
+    }
+
+    // Step 2: Test API data fetching
+    try {
+      const res = await fetch('/api/ws', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'get_login_info' }),
+      })
+      const data = await res.json()
+
+      if (data.status === 'ok' && data.data?.user_id) {
+        setTestResult({
+          status: 'success',
+          message: `✅ 连接正常 — ${data.data.nickname} (${data.data.user_id})`,
+        })
+      } else {
+        setTestResult({
+          status: 'partial',
+          message: `⚠️ WS 已连接，但无法获取数据: ${data.message || '未知错误'}`,
+        })
+      }
+    } catch {
+      setTestResult({
+        status: 'partial',
+        message: '⚠️ WS 已连接，但 API 请求失败',
+      })
+    }
   }
 
   if (loading || !config) return <div className="flex items-center justify-center h-full">加载中...</div>
@@ -94,8 +138,25 @@ export default function SettingsPage() {
           <label className="mb-1 block text-sm font-medium">WS 地址</label>
           <div className="flex gap-2">
             <input type="text" value={config.ws.url} onChange={(e) => setConfig({ ...config, ws: { ...config.ws, url: e.target.value } })} className="flex h-10 flex-1 rounded-md border border-input bg-background px-3 py-2 font-mono text-sm" />
-            <button onClick={handleTestConnection} className="inline-flex items-center justify-center rounded-md border bg-background px-4 py-2 text-sm font-medium hover:bg-accent">测试连接</button>
+            <button
+              onClick={handleTestConnection}
+              disabled={testResult.status === 'testing'}
+              className="inline-flex items-center justify-center rounded-md border bg-background px-4 py-2 text-sm font-medium hover:bg-accent disabled:opacity-50 shrink-0"
+            >
+              {testResult.status === 'testing' ? '测试中...' : '测试连接'}
+            </button>
           </div>
+          {/* Test result shown right below the button area */}
+          {testResult.status !== 'idle' && (
+            <div className={`mt-2 rounded-lg px-3 py-2 text-sm animate-fade-in ${
+              testResult.status === 'success' ? 'bg-green-50 text-green-700 border border-green-200' :
+              testResult.status === 'partial' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
+              testResult.status === 'error' ? 'bg-red-50 text-red-700 border border-red-200' :
+              'bg-muted text-muted-foreground'
+            }`}>
+              {testResult.message}
+            </div>
+          )}
         </div>
         <div>
           <label className="mb-1 block text-sm font-medium">WS Token</label>
@@ -137,7 +198,6 @@ export default function SettingsPage() {
         <h2 className="text-lg font-semibold">语音回复</h2>
         <p className="text-sm text-muted-foreground">收到私聊消息时的回复方式</p>
 
-        {/* Allow user override toggle */}
         <label className="flex items-center gap-3 rounded-lg border px-4 py-3 cursor-pointer">
           <input
             type="checkbox"
@@ -151,7 +211,6 @@ export default function SettingsPage() {
           </div>
         </label>
 
-        {/* Mode selector — grayed out when user override is on */}
         <div className={`flex gap-3 ${config.voiceReply?.allowUserOverride ? 'opacity-40 pointer-events-none' : ''}`}>
           <label className={`flex items-center gap-2 rounded-lg border-2 px-4 py-3 cursor-pointer transition-colors ${config.voiceReply?.mode === 'off' ? 'border-primary bg-primary/5' : 'border-muted hover:border-muted-foreground/30'}`}>
             <input type="radio" name="voiceReply" value="off" checked={config.voiceReply?.mode === 'off'} onChange={() => setConfig({ ...config, voiceReply: { ...config.voiceReply, mode: 'off' } })} className="h-4 w-4" />
