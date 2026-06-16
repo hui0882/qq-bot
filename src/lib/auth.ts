@@ -9,8 +9,8 @@ export async function setAuthCookie(token: string): Promise<void> {
   const cookieStore = await cookies()
   cookieStore.set(TOKEN_COOKIE, token, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict',
+    secure: false, // HTTP 环境下必须为 false
+    sameSite: 'lax',
     maxAge: COOKIE_MAX_AGE,
     path: '/',
   })
