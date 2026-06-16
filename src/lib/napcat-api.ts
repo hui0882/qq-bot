@@ -54,12 +54,16 @@ class NapCatApiClient {
       return data
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Unknown error'
-      logger.logSystem(`HTTP API request failed: ${msg}`, { action })
+      logger.logSystem(`HTTP API request failed: ${msg}`, {
+        action,
+        apiUrl,
+        apiToken: apiToken ? `${apiToken.slice(0, 6)}...` : 'empty',
+      })
       return {
         status: 'failed',
         retcode: -1,
         data: null,
-        message: msg,
+        message: `API 请求失败: ${msg} (目标: ${apiUrl})`,
         echo,
       }
     }

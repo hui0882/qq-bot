@@ -78,7 +78,6 @@ export default function SettingsPage() {
     setTestResult({ status: 'testing', message: '测试中...' })
 
     // Step 1: Test WS connection
-    let wsConnected = false
     let testUrl = config.ws.url
     if (config.ws.token) {
       const sep = testUrl.includes('?') ? '&' : '?'
@@ -89,7 +88,7 @@ export default function SettingsPage() {
       await new Promise<void>((resolve, reject) => {
         const ws = new WebSocket(testUrl)
         const timeout = setTimeout(() => { ws.close(); reject(new Error('超时')) }, 5000)
-        ws.onopen = () => { clearTimeout(timeout); wsConnected = true; ws.close(); resolve() }
+        ws.onopen = () => { clearTimeout(timeout); ws.close(); resolve() }
         ws.onerror = () => { clearTimeout(timeout); reject(new Error('连接失败')) }
       })
     } catch (err) {
@@ -97,15 +96,34 @@ export default function SettingsPage() {
       return
     }
 
-    // Step 2: Test API data fetching
-    try {
-      const res = await fetch('/api/ws', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'get_login_info' }),
-      })
-      const data = await res.json()
+    // Step 2: Test HTTP API directly
+    const apiUrl = config.api?.url || ''
+    if (!apiUrl) {
+      setTestResult({ status: 'partial', message: '⚠️ WS 已连接，但未配置 HTTP API 地址' })
+      return
+    }
 
+    try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+      if (config.api?.token) headers['Authorization'] = `Bearer ${config.api.token}`
+
+      const res = await fetch(`${apiUrl}/get_login_info`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({}),
+        signal: AbortSignal.timeout(5000),
+      })
+
+      if (!res.ok) {
+        const errText = await res.text().catch(() => '')
+        setTestResult({
+          status: 'partial',
+          message: `⚠️ WS 已连接，但 HTTP API 返回错误: ${res.status} ${errText.slice(0, 100)}`,
+        })
+        return
+      }
+
+      const data = await res.json()
       if (data.status === 'ok' && data.data?.user_id) {
         setTestResult({
           status: 'success',
@@ -114,13 +132,13 @@ export default function SettingsPage() {
       } else {
         setTestResult({
           status: 'partial',
-          message: `⚠️ WS 已连接，但无法获取数据: ${data.message || '未知错误'}`,
+          message: `⚠️ WS 已连接，但 API 返回异常: ${JSON.stringify(data).slice(0, 100)}`,
         })
       }
-    } catch {
+    } catch (err) {
       setTestResult({
         status: 'partial',
-        message: '⚠️ WS 已连接，但 API 请求失败',
+        message: `⚠️ WS 已连接，但 HTTP API 无法访问: ${(err as Error).message}`,
       })
     }
   }
