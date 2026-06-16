@@ -345,7 +345,8 @@ export default function ContactsPage() {
 
     const res = await callApi(selectedAction.action, params)
     if (res.status === 'ok') {
-      setActionResult(`✅ 成功: ${JSON.stringify(res.data).slice(0, 200)}`)
+      const dataStr = res.data ? JSON.stringify(res.data) : '操作成功'
+      setActionResult(`✅ 成功: ${dataStr.slice(0, 200)}`)
     } else {
       setActionResult(`❌ 失败: ${res.message || 'Unknown error'}`)
     }
