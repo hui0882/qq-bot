@@ -1,7 +1,7 @@
 // src/lib/command-handler.ts
 // Slash command parser and handler
 
-import { napcatApi } from './napcat-api'
+import { napcatWS } from './napcat-ws'
 import { getUserResponseType, setUserConfig } from './user-config'
 import { configManager } from './config'
 import { logger } from './logger'
@@ -46,7 +46,7 @@ function getResponseTypeUsage(): string {
 }
 
 async function sendReply(userId: number, text: string): Promise<void> {
-  await napcatApi.sendAction('send_msg', {
+  await napcatWS.sendAction('send_msg', {
     message_type: 'private',
     user_id: String(userId),
     message: [{ type: 'text', data: { text } }],

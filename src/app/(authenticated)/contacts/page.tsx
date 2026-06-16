@@ -75,29 +75,50 @@ export default function ContactsPage() {
   }, [])
 
   const loadPendingRequests = async () => {
-    const res = await fetch('/api/friend-requests')
-    const data = await res.json()
-    if (data.data) setPendingRequests(data.data)
+    setLoading(true)
+    try {
+      // 从 NapCat API 获取好友请求列表
+      const res = await fetch('/api/ws', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'get_doubt_friends_add_request', params: { count: 50 } }),
+      })
+      const data = await res.json()
+      if (data.status === 'ok' && Array.isArray(data.data)) {
+        setPendingRequests(data.data.map((r: Record<string, unknown>) => ({
+          flag: r.flag as string || '',
+          userId: r.user_id as number,
+          nickname: (r.nickname as string) || `User ${r.user_id}`,
+          comment: (r.comment as string) || '',
+          timestamp: ((r.time as number) || 0) * 1000,
+        })))
+      } else {
+        setPendingRequests([])
+      }
+    } catch {
+      setPendingRequests([])
+    }
+    setLoading(false)
   }
 
   const handleApprove = async (flag: string) => {
-    const res = await fetch('/api/friend-requests', {
+    const res = await fetch('/api/ws', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'approve', flag }),
+      body: JSON.stringify({ action: 'set_friend_add_request', params: { flag, approve: true } }),
     })
     const data = await res.json()
-    if (data.success) loadPendingRequests()
+    if (data.status === 'ok') loadPendingRequests()
   }
 
   const handleReject = async (flag: string) => {
-    const res = await fetch('/api/friend-requests', {
+    const res = await fetch('/api/ws', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'reject', flag }),
+      body: JSON.stringify({ action: 'set_friend_add_request', params: { flag, approve: false } }),
     })
     const data = await res.json()
-    if (data.success) loadPendingRequests()
+    if (data.status === 'ok') loadPendingRequests()
   }
 
   // Action dialog state
@@ -324,7 +345,8 @@ export default function ContactsPage() {
 
     const res = await callApi(selectedAction.action, params)
     if (res.status === 'ok') {
-      setActionResult(`✅ 成功: ${JSON.stringify(res.data).slice(0, 200)}`)
+      const dataStr = res.data ? JSON.stringify(res.data) : '操作成功'
+      setActionResult(`✅ 成功: ${dataStr.slice(0, 200)}`)
     } else {
       setActionResult(`❌ 失败: ${res.message || 'Unknown error'}`)
     }

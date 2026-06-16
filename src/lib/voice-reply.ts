@@ -2,7 +2,7 @@
 // Message handler: commands, text echo, voice reply
 
 import { textToSpeech } from './tts'
-import { napcatApi } from './napcat-api'
+import { napcatWS } from './napcat-ws'
 import { configManager } from './config'
 import { getUserResponseType } from './user-config'
 import { handleCommand } from './command-handler'
@@ -42,7 +42,7 @@ function getEffectiveMode(userId: number): 'off' | 'always' | 'auto' {
 }
 
 async function sendTextReply(userId: number, text: string): Promise<void> {
-  const result = await napcatApi.sendAction('send_msg', {
+  const result = await napcatWS.sendAction('send_msg', {
     message_type: 'private',
     user_id: String(userId),
     message: [{ type: 'text', data: { text } }],
@@ -72,7 +72,7 @@ async function sendVoiceReply(userId: number, text: string): Promise<void> {
     const format = config.tts.format || 'wav'
     const mimeType = format === 'mp3' ? 'audio/mpeg' : `audio/${format}`
 
-    const result = await napcatApi.sendAction('send_msg', {
+    const result = await napcatWS.sendAction('send_msg', {
       message_type: 'private',
       user_id: String(userId),
       message: [{ type: 'record', data: { file: `data:${mimeType};base64,${base64Audio}` } }],
@@ -94,7 +94,11 @@ export async function handleVoiceReply(event: Record<string, unknown>): Promise<
   const postType = event.post_type as string
   if (postType !== 'message') return
 
+  // 忽略发出的消息，只处理收到的消息
+  const selfId = event.self_id as number
   const userId = event.user_id as number
+  if (selfId && userId === selfId) return
+
   const messageType = event.message_type as string
   if (userId === 0 || messageType !== 'private') return
 

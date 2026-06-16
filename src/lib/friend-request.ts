@@ -1,7 +1,7 @@
 // src/lib/friend-request.ts
 // Auto or manual friend request handling
 
-import { napcatApi } from './napcat-api'
+import { napcatWS } from './napcat-ws'
 import { configManager } from './config'
 import { logger } from './logger'
 
@@ -45,7 +45,7 @@ export async function handleFriendRequestEvent(event: Record<string, unknown>): 
 
   if (mode === 'auto') {
     // Auto-approve
-    const result = await napcatApi.sendAction('set_friend_add_request', {
+    const result = await napcatWS.sendAction('set_friend_add_request', {
       flag,
       approve: true,
       remark: nickname,
@@ -70,7 +70,7 @@ export async function handleFriendRequestEvent(event: Record<string, unknown>): 
 }
 
 export async function approveFriendRequest(flag: string, remark?: string): Promise<{ success: boolean; message?: string }> {
-  const result = await napcatApi.sendAction('set_friend_add_request', {
+  const result = await napcatWS.sendAction('set_friend_add_request', {
     flag,
     approve: true,
     ...(remark ? { remark } : {}),
@@ -84,7 +84,7 @@ export async function approveFriendRequest(flag: string, remark?: string): Promi
 }
 
 export async function rejectFriendRequest(flag: string): Promise<{ success: boolean; message?: string }> {
-  const result = await napcatApi.sendAction('set_friend_add_request', {
+  const result = await napcatWS.sendAction('set_friend_add_request', {
     flag,
     approve: false,
   })
