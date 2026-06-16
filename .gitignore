@@ -45,3 +45,6 @@ data/logs/
 data/tmp/
 data/config.json
 .playwright-mcp/
+
+# Internal dev docs (not for GitHub)
+docs/dev/
