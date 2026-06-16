@@ -58,7 +58,9 @@ jobs:
             ${{ secrets.CONFIG_JSON }}
             CONFIGEOF
 
-            # 构建
+            # 清理旧构建并重新构建
+            echo "清理旧构建..."
+            rm -rf .next
             echo "构建项目..."
             npm run build
 
