@@ -2,7 +2,7 @@
 // Message handler: commands, text echo, voice reply
 
 import { textToSpeech } from './tts'
-import { napcatApi } from './napcat-api'
+import { napcatWS } from './napcat-ws'
 import { configManager } from './config'
 import { getUserResponseType } from './user-config'
 import { handleCommand } from './command-handler'
@@ -42,7 +42,7 @@ function getEffectiveMode(userId: number): 'off' | 'always' | 'auto' {
 }
 
 async function sendTextReply(userId: number, text: string): Promise<void> {
-  const result = await napcatApi.sendAction('send_msg', {
+  const result = await napcatWS.sendAction('send_msg', {
     message_type: 'private',
     user_id: String(userId),
     message: [{ type: 'text', data: { text } }],
@@ -72,7 +72,7 @@ async function sendVoiceReply(userId: number, text: string): Promise<void> {
     const format = config.tts.format || 'wav'
     const mimeType = format === 'mp3' ? 'audio/mpeg' : `audio/${format}`
 
-    const result = await napcatApi.sendAction('send_msg', {
+    const result = await napcatWS.sendAction('send_msg', {
       message_type: 'private',
       user_id: String(userId),
       message: [{ type: 'record', data: { file: `data:${mimeType};base64,${base64Audio}` } }],
