@@ -94,7 +94,11 @@ export async function handleVoiceReply(event: Record<string, unknown>): Promise<
   const postType = event.post_type as string
   if (postType !== 'message') return
 
+  // 忽略发出的消息，只处理收到的消息
+  const selfId = event.self_id as number
   const userId = event.user_id as number
+  if (selfId && userId === selfId) return
+
   const messageType = event.message_type as string
   if (userId === 0 || messageType !== 'private') return
 
