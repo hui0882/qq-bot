@@ -77,26 +77,7 @@ export default function SettingsPage() {
     if (!config) return
     setTestResult({ status: 'testing', message: '测试中...' })
 
-    // Step 1: Test WS connection
-    let testUrl = config.ws.url
-    if (config.ws.token) {
-      const sep = testUrl.includes('?') ? '&' : '?'
-      testUrl = `${testUrl}${sep}access_token=${encodeURIComponent(config.ws.token)}`
-    }
-
-    try {
-      await new Promise<void>((resolve, reject) => {
-        const ws = new WebSocket(testUrl)
-        const timeout = setTimeout(() => { ws.close(); reject(new Error('超时')) }, 5000)
-        ws.onopen = () => { clearTimeout(timeout); ws.close(); resolve() }
-        ws.onerror = () => { clearTimeout(timeout); reject(new Error('连接失败')) }
-      })
-    } catch (err) {
-      setTestResult({ status: 'error', message: `❌ WS 连接失败: ${(err as Error).message}` })
-      return
-    }
-
-    // Step 2: Test API via WS proxy
+    // 通过服务器端 API 测试连接（不在浏览器端直接连 WS）
     try {
       const res = await fetch('/api/ws', {
         method: 'POST',
@@ -112,14 +93,14 @@ export default function SettingsPage() {
         })
       } else {
         setTestResult({
-          status: 'partial',
-          message: `⚠️ WS 已连接，但无法获取数据: ${data.message || '未知错误'}`,
+          status: 'error',
+          message: `❌ 连接失败: ${data.message || '无法获取数据'}`,
         })
       }
     } catch (err) {
       setTestResult({
-        status: 'partial',
-        message: `⚠️ WS 已连接，但 API 请求失败: ${(err as Error).message}`,
+        status: 'error',
+        message: `❌ 请求失败: ${(err as Error).message}`,
       })
     }
   }
