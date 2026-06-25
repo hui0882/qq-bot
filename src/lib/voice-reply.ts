@@ -5,7 +5,7 @@ import { textToSpeech } from './tts'
 import { napcatWS } from './napcat-ws'
 import { configManager } from './config'
 import { getUserResponseType } from './user-config'
-import { handleCommand } from './command-handler'
+import { dispatchCommand } from './commands'
 import { logger } from './logger'
 import { readFileSync, unlinkSync } from 'fs'
 
@@ -30,15 +30,31 @@ function getEffectiveMode(userId: number): 'off' | 'always' | 'auto' {
   const config = configManager.getConfig()
   const globalMode = config.voiceReply?.mode || 'off'
 
-  // If user override is allowed, check per-user config
-  if (config.voiceReply?.allowUserOverride) {
-    const userMode = getUserResponseType(userId)
-    if (userMode === 'voice') return 'always'
-    if (userMode === 'text') return 'off'
-    if (userMode === 'auto') return 'auto'
+  // Global mode=off → always text, ignore user settings
+  if (globalMode === 'off') return 'off'
+
+  // Check if user override is allowed (compat: fallback to voiceReply.allowUserOverride)
+  const allowOverride = config.commands?.allowUserOverride
+    ?? config.voiceReply?.allowUserOverride
+    ?? false
+
+  if (!allowOverride) return globalMode
+
+  // Read user setting
+  const userMode = getUserResponseType(userId)
+  if (!userMode || userMode === 'auto') return globalMode
+
+  // User chose voice — validate TTS availability
+  if (userMode === 'voice') {
+    if (!config.tts?.enabled) {
+      logger.logSystem('VoiceReply: TTS not enabled, fallback to text', { userId })
+      return 'off'
+    }
+    return 'always'
   }
 
-  return globalMode
+  // User chose text
+  return 'off'
 }
 
 async function sendTextReply(userId: number, text: string): Promise<void> {
@@ -107,7 +123,7 @@ export async function handleVoiceReply(event: Record<string, unknown>): Promise<
   if (!textContent) return
 
   if (textContent.trim().startsWith('/')) {
-    await handleCommand(event)
+    await dispatchCommand(event)
     return
   }
 
