@@ -41,6 +41,12 @@ const DEFAULT_CONFIG: PlatformConfig = {
     persistToFile: true,
     logDir: 'data/logs',
   },
+  commands: {
+    enabled: true,
+    prefix: '/',
+    allowUserOverride: false,
+    definitions: [],
+  },
 }
 
 export type ConfigChangeListener = (config: PlatformConfig, changedKeys: string[]) => void
@@ -73,6 +79,7 @@ class ConfigManager {
         friendRequest: { ...DEFAULT_CONFIG.friendRequest, ...parsed.friendRequest },
         auth: { ...DEFAULT_CONFIG.auth, ...parsed.auth },
         log: { ...DEFAULT_CONFIG.log, ...parsed.log },
+        commands: { ...DEFAULT_CONFIG.commands, ...parsed.commands },
       }
     } catch {
       return { ...DEFAULT_CONFIG }
@@ -113,6 +120,7 @@ class ConfigManager {
     if (old.auth.token !== curr.auth.token) keys.push('auth.token')
     if (old.log.maxEntries !== curr.log.maxEntries) keys.push('log.maxEntries')
     if (old.log.persistToFile !== curr.log.persistToFile) keys.push('log.persistToFile')
+    if (old.commands?.enabled !== curr.commands?.enabled) keys.push('commands.enabled')
     return keys
   }
 
@@ -129,6 +137,7 @@ class ConfigManager {
       friendRequest: { ...this.config.friendRequest, ...partial.friendRequest },
       auth: { ...this.config.auth, ...partial.auth },
       log: { ...this.config.log, ...partial.log },
+      commands: { ...this.config.commands, ...partial.commands },
     }
     writeFileSync(CONFIG_PATH, JSON.stringify(this.config, null, 2), 'utf-8')
   }
