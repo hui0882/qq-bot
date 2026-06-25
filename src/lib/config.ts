@@ -45,7 +45,34 @@ const DEFAULT_CONFIG: PlatformConfig = {
     enabled: true,
     prefix: '/',
     allowUserOverride: false,
-    definitions: [],
+    definitions: [
+      {
+        name: 'help',
+        description: '查看所有可用命令',
+        usage: '/help',
+        enabled: true,
+        handler: 'builtin:help',
+      },
+      {
+        name: 'response-type',
+        description: '设置回复模式（语音/文本）',
+        usage: '/response-type <voice|text|auto>',
+        enabled: true,
+        handler: 'builtin:response-type',
+        args: [
+          {
+            name: 'mode',
+            required: true,
+            values: ['voice', 'text', 'auto'],
+            description: '回复模式',
+          },
+        ],
+        conditions: {
+          requireAllowUserOverride: true,
+          requireTtsEnabled: true,
+        },
+      },
+    ],
   },
 }
 
@@ -71,6 +98,13 @@ class ConfigManager {
       }
       const raw = readFileSync(CONFIG_PATH, 'utf-8')
       const parsed = JSON.parse(raw) as Partial<PlatformConfig>
+      // Migrate voiceReply.allowUserOverride → commands.allowUserOverride
+      if (parsed.voiceReply?.allowUserOverride !== undefined && !parsed.commands) {
+        parsed.commands = {
+          ...DEFAULT_CONFIG.commands,
+          allowUserOverride: parsed.voiceReply.allowUserOverride,
+        }
+      }
       return {
         ws: { ...DEFAULT_CONFIG.ws, ...parsed.ws },
         api: { ...DEFAULT_CONFIG.api, ...parsed.api },
@@ -79,7 +113,11 @@ class ConfigManager {
         friendRequest: { ...DEFAULT_CONFIG.friendRequest, ...parsed.friendRequest },
         auth: { ...DEFAULT_CONFIG.auth, ...parsed.auth },
         log: { ...DEFAULT_CONFIG.log, ...parsed.log },
-        commands: { ...DEFAULT_CONFIG.commands, ...parsed.commands },
+        commands: {
+          ...DEFAULT_CONFIG.commands,
+          ...parsed.commands,
+          definitions: parsed.commands?.definitions || DEFAULT_CONFIG.commands.definitions,
+        },
       }
     } catch {
       return { ...DEFAULT_CONFIG }
@@ -121,6 +159,7 @@ class ConfigManager {
     if (old.log.maxEntries !== curr.log.maxEntries) keys.push('log.maxEntries')
     if (old.log.persistToFile !== curr.log.persistToFile) keys.push('log.persistToFile')
     if (old.commands?.enabled !== curr.commands?.enabled) keys.push('commands.enabled')
+    if (old.commands?.allowUserOverride !== curr.commands?.allowUserOverride) keys.push('commands.allowUserOverride')
     return keys
   }
 
