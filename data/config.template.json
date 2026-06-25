@@ -1,0 +1,70 @@
+{
+  "ws": {
+    "url": "ws://115.190.250.31:3001",
+    "token": "",
+    "reconnect": true,
+    "reconnectInterval": 5000,
+    "maxReconnectInterval": 30000
+  },
+  "api": {
+    "url": "http://115.190.250.31:3000",
+    "token": ""
+  },
+  "tts": {
+    "enabled": false,
+    "apiUrl": "https://api.xiaomimimo.com/v1/chat/completions",
+    "apiKey": "",
+    "model": "mimo-v2.5-tts",
+    "voice": "茉莉",
+    "style": "温柔",
+    "format": "wav"
+  },
+  "voiceReply": {
+    "mode": "off",
+    "allowUserOverride": false
+  },
+  "friendRequest": {
+    "mode": "auto"
+  },
+  "auth": {
+    "token": "napcat-admin-token"
+  },
+  "log": {
+    "maxEntries": 5000,
+    "persistToFile": true,
+    "logDir": "data/logs"
+  },
+  "commands": {
+    "enabled": true,
+    "prefix": "/",
+    "allowUserOverride": false,
+    "definitions": [
+      {
+        "name": "help",
+        "description": "查看所有可用命令",
+        "usage": "/help",
+        "enabled": true,
+        "handler": "builtin:help"
+      },
+      {
+        "name": "response-type",
+        "description": "设置回复模式（语音/文本）",
+        "usage": "/response-type <voice|text|auto>",
+        "enabled": true,
+        "handler": "builtin:response-type",
+        "args": [
+          {
+            "name": "mode",
+            "required": true,
+            "values": ["voice", "text", "auto"],
+            "description": "回复模式"
+          }
+        ],
+        "conditions": {
+          "requireAllowUserOverride": true,
+          "requireTtsEnabled": true
+        }
+      }
+    ]
+  }
+}

@@ -85,6 +85,21 @@ export default function SettingsPage() {
     setSaving(false)
   }
 
+  const handleReset = async () => {
+    if (!confirm('确定要恢复默认配置吗？当前所有配置将被覆盖。')) return
+    setSaving(true)
+    setMessage('')
+    const res = await fetch('/api/config/reset', { method: 'POST' })
+    const data = await res.json()
+    if (data.success && data.data) {
+      setConfig(data.data)
+      setMessage('已恢复默认配置')
+    } else {
+      setMessage(`恢复失败: ${data.message}`)
+    }
+    setSaving(false)
+  }
+
   const handleTestConnection = async () => {
     if (!config) return
     setTestResult({ status: 'testing', message: '测试中...' })
@@ -339,12 +354,15 @@ export default function SettingsPage() {
         </label>
       </div>
 
-      {/* Save */}
+      {/* Save & Reset */}
       <div className="flex items-center gap-4">
         <button onClick={handleSave} disabled={saving} className="inline-flex items-center justify-center rounded-md bg-primary px-6 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50">
           {saving ? '保存中...' : '保存配置'}
         </button>
-        {message && <span className={`text-sm ${message.includes('成功') ? 'text-green-600' : 'text-destructive'}`}>{message}</span>}
+        <button onClick={handleReset} disabled={saving} className="inline-flex items-center justify-center rounded-md border border-destructive/50 px-6 py-2.5 text-sm font-medium text-destructive hover:bg-destructive/10 disabled:opacity-50">
+          恢复默认配置
+        </button>
+        {message && <span className={`text-sm ${message.includes('成功') || message.includes('恢复') ? 'text-green-600' : 'text-destructive'}`}>{message}</span>}
       </div>
     </div>
   )

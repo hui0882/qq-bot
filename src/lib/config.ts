@@ -1,9 +1,10 @@
 // src/lib/config.ts
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs'
+import { readFileSync, writeFileSync, copyFileSync, existsSync, mkdirSync } from 'fs'
 import { join } from 'path'
 import type { PlatformConfig } from '@/types/napcat'
 
 const CONFIG_PATH = join(process.cwd(), 'data', 'config.json')
+const TEMPLATE_PATH = join(process.cwd(), 'data', 'config.template.json')
 
 const DEFAULT_CONFIG: PlatformConfig = {
   ws: {
@@ -93,7 +94,12 @@ class ConfigManager {
       if (!existsSync(CONFIG_PATH)) {
         const dir = join(process.cwd(), 'data')
         if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
-        writeFileSync(CONFIG_PATH, JSON.stringify(DEFAULT_CONFIG, null, 2), 'utf-8')
+        // 从模板复制，模板不存在则用代码默认值
+        if (existsSync(TEMPLATE_PATH)) {
+          copyFileSync(TEMPLATE_PATH, CONFIG_PATH)
+        } else {
+          writeFileSync(CONFIG_PATH, JSON.stringify(DEFAULT_CONFIG, null, 2), 'utf-8')
+        }
         return { ...DEFAULT_CONFIG }
       }
       const raw = readFileSync(CONFIG_PATH, 'utf-8')
@@ -190,6 +196,17 @@ class ConfigManager {
 
   getMaskedConfig(): PlatformConfig {
     // Return full config — frontend handles masking and reveal
+    return { ...this.config }
+  }
+
+  resetConfig(): PlatformConfig {
+    // 从模板恢复默认配置
+    if (existsSync(TEMPLATE_PATH)) {
+      copyFileSync(TEMPLATE_PATH, CONFIG_PATH)
+    } else {
+      writeFileSync(CONFIG_PATH, JSON.stringify(DEFAULT_CONFIG, null, 2), 'utf-8')
+    }
+    this.config = this.loadConfig()
     return { ...this.config }
   }
 
