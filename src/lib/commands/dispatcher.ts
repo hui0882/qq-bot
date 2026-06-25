@@ -30,7 +30,6 @@ function parseCommand(text: string): { name: string; args: string[] } | null {
   if (!text.startsWith('/')) return null
   const parts = text.split(/\s+/)
   const name = parts[0].toLowerCase().slice(1) // remove leading /
-  if (!name) return null
   return { name, args: parts.slice(1) }
 }
 

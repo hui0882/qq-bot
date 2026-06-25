@@ -254,7 +254,7 @@ export default function SettingsPage() {
             onChange={(e) =>
               setConfig({
                 ...config,
-                commands: { ...config.commands!, enabled: e.target.checked },
+                commands: { ...(config.commands || { enabled: true, prefix: '/', allowUserOverride: false, definitions: [] }), enabled: e.target.checked },
               })
             }
           />
@@ -268,7 +268,7 @@ export default function SettingsPage() {
             onChange={(e) =>
               setConfig({
                 ...config,
-                commands: { ...config.commands!, allowUserOverride: e.target.checked },
+                commands: { ...(config.commands || { enabled: true, prefix: '/', allowUserOverride: false, definitions: [] }), allowUserOverride: e.target.checked },
               })
             }
           />
@@ -284,11 +284,11 @@ export default function SettingsPage() {
                   type="checkbox"
                   checked={def.enabled}
                   onChange={(e) => {
-                    const defs = [...config.commands!.definitions]
+                    const defs = [...(config.commands?.definitions || [])]
                     defs[i] = { ...defs[i], enabled: e.target.checked }
                     setConfig({
                       ...config,
-                      commands: { ...config.commands!, definitions: defs },
+                      commands: { ...(config.commands || { enabled: true, prefix: '/', allowUserOverride: false, definitions: [] }), definitions: defs },
                     })
                   }}
                 />
