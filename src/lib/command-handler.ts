@@ -100,6 +100,14 @@ export async function handleCommand(event: Record<string, unknown>): Promise<boo
 
   // /response-type
   if (cmd === 'response-type') {
+    const config = configManager.getConfig()
+
+    // 检查是否允许用户自定义
+    if (!config.voiceReply?.allowUserOverride) {
+      await sendReply(userId, '⚠️ 当前由管理员统一配置回复模式，无法自定义')
+      return true
+    }
+
     if (args.length === 0) {
       await sendReply(userId, getResponseTypeUsage())
       return true

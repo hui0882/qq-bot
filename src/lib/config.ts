@@ -108,6 +108,7 @@ class ConfigManager {
     if (old.tts?.apiKey !== curr.tts?.apiKey) keys.push('tts.apiKey')
     if (old.tts?.enabled !== curr.tts?.enabled) keys.push('tts.enabled')
     if (old.voiceReply?.mode !== curr.voiceReply?.mode) keys.push('voiceReply.mode')
+    if (old.voiceReply?.allowUserOverride !== curr.voiceReply?.allowUserOverride) keys.push('voiceReply.allowUserOverride')
     if (old.friendRequest?.mode !== curr.friendRequest?.mode) keys.push('friendRequest.mode')
     if (old.auth.token !== curr.auth.token) keys.push('auth.token')
     if (old.log.maxEntries !== curr.log.maxEntries) keys.push('log.maxEntries')

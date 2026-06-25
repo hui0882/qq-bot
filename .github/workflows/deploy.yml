@@ -51,12 +51,16 @@ jobs:
             echo "安装依赖..."
             npm ci
 
-            # 写入配置文件
-            echo "写入配置..."
+            # 写入配置文件（仅首次部署时写入，不覆盖用户修改）
             mkdir -p data
-            cat > data/config.json << 'CONFIGEOF'
-            ${{ secrets.CONFIG_JSON }}
-            CONFIGEOF
+            if [ ! -f data/config.json ]; then
+              echo "首次部署，写入配置..."
+              cat > data/config.json << 'CONFIGEOF'
+              ${{ secrets.CONFIG_JSON }}
+              CONFIGEOF
+            else
+              echo "配置文件已存在，跳过写入"
+            fi
 
             # 清理旧构建并重新构建
             echo "清理旧构建..."
