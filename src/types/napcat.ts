@@ -180,6 +180,37 @@ export interface OB11ActionResponse {
   echo?: string
 }
 
+// ============ 命令系统 ============
+
+export interface CommandArg {
+  name: string
+  required: boolean
+  values?: string[]
+  description?: string
+}
+
+export interface CommandConditions {
+  requireAllowUserOverride?: boolean
+  requireTtsEnabled?: boolean
+}
+
+export interface CommandDefinition {
+  name: string
+  description: string
+  usage: string
+  enabled: boolean
+  handler: string
+  args?: CommandArg[]
+  conditions?: CommandConditions
+}
+
+export interface CommandsConfig {
+  enabled: boolean
+  prefix: string
+  allowUserOverride: boolean
+  definitions: CommandDefinition[]
+}
+
 // ============ 平台配置 ============
 
 export interface PlatformConfig {
@@ -218,6 +249,7 @@ export interface PlatformConfig {
     persistToFile: boolean
     logDir: string
   }
+  commands: CommandsConfig
 }
 
 // ============ 日志条目 ============
