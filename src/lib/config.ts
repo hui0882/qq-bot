@@ -8,23 +8,23 @@ const TEMPLATE_PATH = join(process.cwd(), 'data', 'config.template.json')
 
 const DEFAULT_CONFIG: PlatformConfig = {
   ws: {
-    url: 'ws://115.190.250.31:3001',
+    url: '',
     token: '',
     reconnect: true,
     reconnectInterval: 5000,
     maxReconnectInterval: 30000,
   },
   api: {
-    url: 'http://115.190.250.31:3000',
+    url: '',
     token: '',
   },
   tts: {
     enabled: false,
-    apiUrl: 'https://api.xiaomimimo.com/v1/chat/completions',
+    apiUrl: '',
     apiKey: '',
-    model: 'mimo-v2.5-tts',
-    voice: '茉莉',
-    style: '温柔',
+    model: '',
+    voice: '',
+    style: '',
     format: 'wav',
   },
   voiceReply: {
