@@ -89,6 +89,16 @@ class ConfigManager {
     this.startWatcher()
   }
 
+  private loadTemplate(): PlatformConfig {
+    try {
+      if (existsSync(TEMPLATE_PATH)) {
+        const raw = readFileSync(TEMPLATE_PATH, 'utf-8')
+        return { ...DEFAULT_CONFIG, ...JSON.parse(raw) as Partial<PlatformConfig> }
+      }
+    } catch { /* ignore */ }
+    return { ...DEFAULT_CONFIG }
+  }
+
   private loadConfig(): PlatformConfig {
     try {
       if (!existsSync(CONFIG_PATH)) {
@@ -100,7 +110,7 @@ class ConfigManager {
         } else {
           writeFileSync(CONFIG_PATH, JSON.stringify(DEFAULT_CONFIG, null, 2), 'utf-8')
         }
-        return { ...DEFAULT_CONFIG }
+        return this.loadTemplate()
       }
       const raw = readFileSync(CONFIG_PATH, 'utf-8')
       const parsed = JSON.parse(raw) as Partial<PlatformConfig>
@@ -126,7 +136,7 @@ class ConfigManager {
         },
       }
     } catch {
-      return { ...DEFAULT_CONFIG }
+      return this.loadTemplate()
     }
   }
 
@@ -201,12 +211,9 @@ class ConfigManager {
 
   resetConfig(): PlatformConfig {
     // 从模板恢复默认配置
-    if (existsSync(TEMPLATE_PATH)) {
-      copyFileSync(TEMPLATE_PATH, CONFIG_PATH)
-    } else {
-      writeFileSync(CONFIG_PATH, JSON.stringify(DEFAULT_CONFIG, null, 2), 'utf-8')
-    }
-    this.config = this.loadConfig()
+    const template = this.loadTemplate()
+    writeFileSync(CONFIG_PATH, JSON.stringify(template, null, 2), 'utf-8')
+    this.config = template
     return { ...this.config }
   }
 

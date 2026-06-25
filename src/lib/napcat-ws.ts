@@ -38,6 +38,13 @@ class NapCatWSClient {
     }
 
     const config = configManager.getConfig()
+
+    // URL 为空时不连接，等待用户配置
+    if (!config.ws.url) {
+      logger.logSystem('WS URL not configured, skipping connection')
+      return
+    }
+
     this.setStatus('connecting')
 
     // Build URL with access_token if configured

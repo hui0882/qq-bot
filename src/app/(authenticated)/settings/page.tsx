@@ -102,6 +102,10 @@ export default function SettingsPage() {
 
   const handleTestConnection = async () => {
     if (!config) return
+    if (!config.ws.url) {
+      setTestResult({ status: 'error', message: '请先填写 WS 地址' })
+      return
+    }
     setTestResult({ status: 'testing', message: '测试中...' })
 
     // Step 1: Test WS connection
