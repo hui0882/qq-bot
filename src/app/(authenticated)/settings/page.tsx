@@ -8,6 +8,18 @@ interface Config {
   api: { url: string; token: string }
   tts: { enabled: boolean; apiUrl: string; apiKey: string; model: string; voice: string; style: string; format: string }
   voiceReply: { mode: 'off' | 'always' | 'auto'; allowUserOverride: boolean }
+  commands?: {
+    enabled: boolean
+    prefix: string
+    allowUserOverride: boolean
+    definitions: Array<{
+      name: string
+      description: string
+      usage: string
+      enabled: boolean
+      handler: string
+    }>
+  }
   friendRequest: { mode: 'auto' | 'manual' }
   auth: { token: string }
   log: { maxEntries: number; persistToFile: boolean; logDir: string }
@@ -229,6 +241,63 @@ export default function SettingsPage() {
           <p className="text-xs text-amber-600">⚠️ 用户自定义已开启，全局回复模式设置已禁用</p>
         )}
         <p className="text-xs text-muted-foreground">音色: {config.tts?.voice || '茉莉'} · 风格: {config.tts?.style || '温柔'}</p>
+      </div>
+
+      {/* 命令管理 */}
+      <div className="border rounded-lg p-4">
+        <h3 className="text-lg font-medium mb-3">命令管理</h3>
+
+        <label className="flex items-center gap-2 mb-3">
+          <input
+            type="checkbox"
+            checked={config.commands?.enabled ?? true}
+            onChange={(e) =>
+              setConfig({
+                ...config,
+                commands: { ...config.commands!, enabled: e.target.checked },
+              })
+            }
+          />
+          <span>启用命令系统</span>
+        </label>
+
+        <label className="flex items-center gap-2 mb-4">
+          <input
+            type="checkbox"
+            checked={config.commands?.allowUserOverride ?? false}
+            onChange={(e) =>
+              setConfig({
+                ...config,
+                commands: { ...config.commands!, allowUserOverride: e.target.checked },
+              })
+            }
+          />
+          <span>允许用户自定义回复模式</span>
+        </label>
+
+        {config.commands?.definitions && config.commands.definitions.length > 0 && (
+          <div className="space-y-2">
+            <p className="text-sm text-gray-500 mb-2">命令列表：</p>
+            {config.commands.definitions.map((def, i) => (
+              <label key={def.name} className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={def.enabled}
+                  onChange={(e) => {
+                    const defs = [...config.commands!.definitions]
+                    defs[i] = { ...defs[i], enabled: e.target.checked }
+                    setConfig({
+                      ...config,
+                      commands: { ...config.commands!, definitions: defs },
+                    })
+                  }}
+                />
+                <span className="font-mono">/{def.name}</span>
+                <span className="text-gray-400">— {def.description}</span>
+              </label>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Friend Request */}
