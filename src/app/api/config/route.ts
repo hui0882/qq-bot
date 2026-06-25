@@ -69,6 +69,10 @@ export async function POST(request: NextRequest) {
       safePartial.log = body.log
     }
 
+    if (body.commands) {
+      safePartial.commands = body.commands
+    }
+
     // Validate WS URL
     const wsData = safePartial.ws as Record<string, unknown> | undefined
     if (wsData?.url && typeof wsData.url === 'string' && !wsData.url.startsWith('ws://') && !wsData.url.startsWith('wss://')) {
