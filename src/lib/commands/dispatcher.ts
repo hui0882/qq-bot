@@ -51,11 +51,11 @@ function validateArgs(
     const value = args[i]
 
     if (argDef.required && !value) {
-      return `缺少必填参数: ${argDef.name}\n\n用法: ${definition.usage}`
+      return `❌ 缺少必填参数: ${argDef.name}\n\n用法: ${definition.usage}`
     }
 
     if (value && argDef.values && !argDef.values.includes(value)) {
-      return `无效参数: ${value}\n\n允许的值: ${argDef.values.join(', ')}`
+      return `❌ 无效参数: ${value}\n\n允许的值: ${argDef.values.join(', ')}`
     }
   }
 
@@ -77,14 +77,14 @@ async function checkConditions(
       config.voiceReply?.allowUserOverride ??
       false
     if (!allowOverride) {
-      return '当前由管理员统一配置回复模式，无法自定义'
+      return '⚠️ 当前由管理员统一配置回复模式，无法自定义'
     }
   }
 
   // TTS enabled check
   if (conditions.requireTtsEnabled) {
     if (!config.tts?.enabled) {
-      return '语音功能未启用，无法切换为语音模式'
+      return '⚠️ 语音功能未启用，无法切换为语音模式'
     }
   }
 
@@ -125,7 +125,7 @@ export async function dispatchCommand(
 
   // Bare /
   if (parsed.name === '') {
-    await sendReply(userId, '请输入 /help 查看所有可用命令')
+    await sendReply(userId, '💡 请输入 /help 查看所有可用命令')
     return true
   }
 
@@ -134,7 +134,7 @@ export async function dispatchCommand(
   if (!definition) {
     await sendReply(
       userId,
-      `未知命令: /${parsed.name}\n\n输入 /help 查看所有可用命令`,
+      `❌ 未知命令: /${parsed.name}\n\n输入 /help 查看所有可用命令`,
     )
     return true
   }
@@ -159,7 +159,7 @@ export async function dispatchCommand(
     logger.logSystem('Command: handler not found', {
       handler: definition.handler,
     })
-    await sendReply(userId, '命令处理异常，请联系管理员')
+    await sendReply(userId, '❌ 命令处理异常，请联系管理员')
     return true
   }
 
@@ -183,7 +183,7 @@ export async function dispatchCommand(
       command: parsed.name,
       error: (err as Error).message,
     })
-    await sendReply(userId, '命令执行出错，请稍后重试')
+    await sendReply(userId, '❌ 命令执行出错，请稍后重试')
     return true
   }
 }
