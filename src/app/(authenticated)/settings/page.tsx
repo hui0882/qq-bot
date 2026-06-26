@@ -100,6 +100,28 @@ export default function SettingsPage() {
     setSaving(false)
   }
 
+  const handleRestart = async () => {
+    if (!confirm('确定要重启服务吗？页面会短暂断开后自动恢复。')) return
+    setMessage('服务正在重启，请稍候...')
+    try {
+      await fetch('/api/system/restart', { method: 'POST' })
+    } catch {
+      // 服务已断开，正常
+    }
+    // 轮询等待服务恢复
+    setTimeout(() => {
+      const check = setInterval(async () => {
+        try {
+          const res = await fetch('/api/config')
+          if (res.ok) {
+            clearInterval(check)
+            window.location.reload()
+          }
+        } catch { /* 服务还没起来 */ }
+      }, 2000)
+    }, 3000)
+  }
+
   const handleTestConnection = async () => {
     if (!config) return
     if (!config.ws.url) {
@@ -358,15 +380,18 @@ export default function SettingsPage() {
         </label>
       </div>
 
-      {/* Save & Reset */}
-      <div className="flex items-center gap-4">
+      {/* Save & Reset & Restart */}
+      <div className="flex items-center gap-4 flex-wrap">
         <button onClick={handleSave} disabled={saving} className="inline-flex items-center justify-center rounded-md bg-primary px-6 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50">
           {saving ? '保存中...' : '保存配置'}
         </button>
         <button onClick={handleReset} disabled={saving} className="inline-flex items-center justify-center rounded-md border border-destructive/50 px-6 py-2.5 text-sm font-medium text-destructive hover:bg-destructive/10 disabled:opacity-50">
           恢复默认配置
         </button>
-        {message && <span className={`text-sm ${message.includes('成功') || message.includes('恢复') ? 'text-green-600' : 'text-destructive'}`}>{message}</span>}
+        <button onClick={handleRestart} className="inline-flex items-center justify-center rounded-md border border-orange-400/50 px-6 py-2.5 text-sm font-medium text-orange-600 hover:bg-orange-50">
+          重启服务
+        </button>
+        {message && <span className={`text-sm ${message.includes('成功') || message.includes('恢复') || message.includes('重启') ? 'text-green-600' : 'text-destructive'}`}>{message}</span>}
       </div>
     </div>
   )
