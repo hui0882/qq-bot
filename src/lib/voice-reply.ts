@@ -7,6 +7,7 @@ import { configManager } from './config'
 import { getUserResponseType } from './user-config'
 import { dispatchCommand } from './commands'
 import { logger } from './logger'
+import { processAIMessage } from './ai'
 import { readFileSync, unlinkSync } from 'fs'
 
 const lastReplyTime = new Map<number, number>()
@@ -118,27 +119,83 @@ export async function handleVoiceReply(event: Record<string, unknown>): Promise<
   const messageType = event.message_type as string
   if (userId === 0 || messageType !== 'private') return
 
-  // Check if it's a command
+  // 提取文本内容
   const textContent = extractText(event)
   if (!textContent) return
 
+  // 命令处理 — 命令及其回复不写入 AI 上下文
   if (textContent.trim().startsWith('/')) {
     await dispatchCommand(event)
     return
   }
-
-  // Not a command — apply response mode
-  const mode = getEffectiveMode(userId)
 
   // Debounce
   const now = Date.now()
   if (now - (lastReplyTime.get(userId) || 0) < REPLY_COOLDOWN) return
   lastReplyTime.set(userId, now)
 
-  if (mode === 'off') {
-    await sendTextReply(userId, textContent)
-  } else if (mode === 'always') {
-    await sendVoiceReply(userId, textContent)
+  // 检查 AI 是否启用
+  const config = configManager.getConfig()
+  if (!config.ai?.enabled) {
+    // AI 未启用，走原有 echo 逻辑
+    const mode = getEffectiveMode(userId)
+    if (mode === 'off') {
+      await sendTextReply(userId, textContent)
+    } else if (mode === 'always') {
+      await sendVoiceReply(userId, textContent)
+    }
+    return
   }
-  // 'auto' — not implemented yet
+
+  // AI 管道处理
+  const startTime = Date.now()
+
+  // 确定回复类型：用户设置 > 全局默认
+  let replyType: 'text' | 'voice' = config.ai.defaultReplyType
+  const userMode = getEffectiveMode(userId)
+  if (userMode === 'always') replyType = 'voice'
+  else if (userMode === 'off') replyType = 'text'
+
+  // 记录 AI 请求日志
+  logger.logAI({
+    userId,
+    direction: 'request',
+    data: {
+      userMessage: textContent,
+    },
+  })
+
+  // 调用 AI
+  const response = await processAIMessage(userId, textContent, replyType, config.ai)
+  const duration = Date.now() - startTime
+
+  if (response.error) {
+    // AI 调用失败
+    logger.logAI({
+      userId,
+      direction: 'response',
+      data: { userMessage: textContent, error: response.error, duration },
+    })
+    await sendTextReply(userId, `AI 请求失败：${response.error}`)
+    return
+  }
+
+  // 记录 AI 响应日志
+  logger.logAI({
+    userId,
+    direction: 'response',
+    data: {
+      userMessage: textContent,
+      modelResponse: response.content,
+      usage: response.usage,
+      duration,
+    },
+  })
+
+  // 发送回复
+  if (replyType === 'voice') {
+    await sendVoiceReply(userId, response.content)
+  } else {
+    await sendTextReply(userId, response.content)
+  }
 }
