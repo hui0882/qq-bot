@@ -189,6 +189,9 @@ class ConfigManager {
     if (old.log.persistToFile !== curr.log.persistToFile) keys.push('log.persistToFile')
     if (old.commands?.enabled !== curr.commands?.enabled) keys.push('commands.enabled')
     if (old.commands?.allowUserOverride !== curr.commands?.allowUserOverride) keys.push('commands.allowUserOverride')
+    if (old.ai?.enabled !== curr.ai?.enabled) keys.push('ai.enabled')
+    if (old.ai?.apiKey !== curr.ai?.apiKey) keys.push('ai.apiKey')
+    if (old.ai?.debugContext !== curr.ai?.debugContext) keys.push('ai.debugContext')
     return keys
   }
 
