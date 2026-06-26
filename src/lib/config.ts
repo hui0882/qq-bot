@@ -75,6 +75,18 @@ const DEFAULT_CONFIG: PlatformConfig = {
       },
     ],
   },
+  ai: {
+    enabled: false,
+    baseUrl: '',
+    apiKey: '',
+    model: '',
+    maxTokens: 2048,
+    temperature: 0.7,
+    maxContextRounds: 10,
+    defaultReplyType: 'text',
+    debugContext: false,
+    fileReplyEnabled: false,
+  },
 }
 
 export type ConfigChangeListener = (config: PlatformConfig, changedKeys: string[]) => void
@@ -134,6 +146,7 @@ class ConfigManager {
           ...parsed.commands,
           definitions: parsed.commands?.definitions || DEFAULT_CONFIG.commands.definitions,
         },
+        ai: { ...DEFAULT_CONFIG.ai, ...parsed.ai },
       }
     } catch {
       return this.loadTemplate()
@@ -193,6 +206,7 @@ class ConfigManager {
       auth: { ...this.config.auth, ...partial.auth },
       log: { ...this.config.log, ...partial.log },
       commands: { ...this.config.commands, ...partial.commands },
+      ai: { ...this.config.ai, ...partial.ai },
     }
     writeFileSync(CONFIG_PATH, JSON.stringify(this.config, null, 2), 'utf-8')
   }

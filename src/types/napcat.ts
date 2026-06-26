@@ -211,6 +211,21 @@ export interface CommandsConfig {
   definitions: CommandDefinition[]
 }
 
+// ============ AI 配置 ============
+
+export interface AIConfig {
+  enabled: boolean
+  baseUrl: string
+  apiKey: string
+  model: string
+  maxTokens: number
+  temperature: number
+  maxContextRounds: number
+  defaultReplyType: 'text' | 'voice'
+  debugContext: boolean
+  fileReplyEnabled: boolean
+}
+
 // ============ 平台配置 ============
 
 export interface PlatformConfig {
@@ -250,6 +265,7 @@ export interface PlatformConfig {
     logDir: string
   }
   commands: CommandsConfig
+  ai: AIConfig
 }
 
 // ============ 日志条目 ============
