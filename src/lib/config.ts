@@ -75,6 +75,18 @@ const DEFAULT_CONFIG: PlatformConfig = {
       },
     ],
   },
+  ai: {
+    enabled: false,
+    baseUrl: '',
+    apiKey: '',
+    model: '',
+    maxTokens: 2048,
+    temperature: 0.7,
+    maxContextRounds: 10,
+    defaultReplyType: 'text',
+    debugContext: false,
+    fileReplyEnabled: false,
+  },
 }
 
 export type ConfigChangeListener = (config: PlatformConfig, changedKeys: string[]) => void
@@ -134,6 +146,7 @@ class ConfigManager {
           ...parsed.commands,
           definitions: parsed.commands?.definitions || DEFAULT_CONFIG.commands.definitions,
         },
+        ai: { ...DEFAULT_CONFIG.ai, ...parsed.ai },
       }
     } catch {
       return this.loadTemplate()
@@ -176,6 +189,9 @@ class ConfigManager {
     if (old.log.persistToFile !== curr.log.persistToFile) keys.push('log.persistToFile')
     if (old.commands?.enabled !== curr.commands?.enabled) keys.push('commands.enabled')
     if (old.commands?.allowUserOverride !== curr.commands?.allowUserOverride) keys.push('commands.allowUserOverride')
+    if (old.ai?.enabled !== curr.ai?.enabled) keys.push('ai.enabled')
+    if (old.ai?.apiKey !== curr.ai?.apiKey) keys.push('ai.apiKey')
+    if (old.ai?.debugContext !== curr.ai?.debugContext) keys.push('ai.debugContext')
     return keys
   }
 
@@ -193,6 +209,7 @@ class ConfigManager {
       auth: { ...this.config.auth, ...partial.auth },
       log: { ...this.config.log, ...partial.log },
       commands: { ...this.config.commands, ...partial.commands },
+      ai: { ...this.config.ai, ...partial.ai },
     }
     writeFileSync(CONFIG_PATH, JSON.stringify(this.config, null, 2), 'utf-8')
   }

@@ -169,6 +169,28 @@ class Logger {
     })
   }
 
+  logAI(params: {
+    userId: number
+    direction: 'request' | 'response'
+    data: {
+      userMessage: string
+      modelResponse?: string
+      context?: Array<{ role: string; content: string }>
+      usage?: { prompt: number; completion: number }
+      duration?: number
+      error?: string
+    }
+  }): LogEntry {
+    return this.add({
+      type: 'ai',
+      action: params.direction === 'request' ? 'ai_request' : 'ai_response',
+      data: {
+        userId: params.userId,
+        ...params.data,
+      },
+    })
+  }
+
   getLogs(filters?: {
     type?: LogEntry['type']
     action?: string
