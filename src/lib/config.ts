@@ -2,6 +2,7 @@
 import { readFileSync, writeFileSync, copyFileSync, existsSync, mkdirSync } from 'fs'
 import { join } from 'path'
 import type { PlatformConfig } from '@/types/napcat'
+import { initializeDatabase } from './db/init'
 
 const CONFIG_PATH = join(process.cwd(), 'data', 'config.json')
 const TEMPLATE_PATH = join(process.cwd(), 'data', 'config.template.json')
@@ -97,6 +98,8 @@ class ConfigManager {
   private watcher: import('chokidar').FSWatcher | null = null
 
   constructor() {
+    // 初始化数据库（如果需要，会自动从 JSON 迁移）
+    initializeDatabase()
     this.config = this.loadConfig()
     this.startWatcher()
   }

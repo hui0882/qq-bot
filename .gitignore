@@ -46,6 +46,10 @@ data/tmp/
 data/config.json
 data/user-configs.json
 data/ai-context.json
+data/napcat.db
+data/napcat.db-wal
+data/napcat.db-shm
+*.backup.*
 .playwright-mcp/
 
 # Internal dev docs (not for GitHub)
