@@ -1,7 +1,7 @@
 // src/app/api/user-configs/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { validateAuth } from '@/lib/auth'
-import { exportUserConfigs, importUserConfigs } from '@/lib/user-config'
+import { exportUserConfigs, importUserConfigsData } from '@/lib/user-config'
 
 export async function GET() {
   if (!(await validateAuth())) {
@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
   }
   try {
     const body = await request.json()
-    importUserConfigs(body)
+    importUserConfigsData(body)
     return NextResponse.json({ success: true, message: 'User configs imported' })
   } catch {
     return NextResponse.json({ success: false, message: 'Invalid request' }, { status: 400 })
