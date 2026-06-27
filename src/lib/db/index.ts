@@ -47,7 +47,7 @@ function getDb(): Database.Database {
   return globalForDb.__db
 }
 
-// 导出数据库实例（延迟初始化）
+// 导出数据库代理（延迟初始化）
 export const db = {
   get instance() {
     return getDb()
@@ -74,24 +74,50 @@ export const db = {
 }
 
 /**
- * 初始化数据库表结构
+ * 初始化数据库表结构（v2 可扩展架构）
  */
 export function initDatabase(): void {
   const database = getDb()
 
-  // 用户配置表
+  // 1. 用户基础信息表
   database.exec(`
     CREATE TABLE IF NOT EXISTS users (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      qq_id TEXT NOT NULL UNIQUE,
-      response_type TEXT DEFAULT 'text',
-      ai_enabled INTEGER DEFAULT 0,
+      qq_id TEXT PRIMARY KEY,
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
     )
   `)
 
-  // AI 对话上下文表
+  // 2. 用户设置表（EAV 模式，无限扩展）
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS user_settings (
+      user_id TEXT NOT NULL,
+      key TEXT NOT NULL,
+      value TEXT NOT NULL,
+      updated_at INTEGER NOT NULL,
+      PRIMARY KEY (user_id, key)
+    )
+  `)
+
+  // 3. 用户 AI 配置表（固定结构）
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS user_ai_configs (
+      user_id TEXT PRIMARY KEY,
+      enabled INTEGER DEFAULT 0,
+      base_url TEXT,
+      api_key TEXT,
+      model TEXT,
+      max_tokens INTEGER DEFAULT 2048,
+      temperature REAL DEFAULT 0.7,
+      max_context_rounds INTEGER DEFAULT 10,
+      default_reply_type TEXT DEFAULT 'text',
+      custom_system_prompt TEXT,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    )
+  `)
+
+  // 4. AI 对话上下文表
   database.exec(`
     CREATE TABLE IF NOT EXISTS ai_conversations (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -102,7 +128,7 @@ export function initDatabase(): void {
     )
   `)
 
-  // AI 配置表
+  // 5. 全局 AI 配置表（KV 存储）
   database.exec(`
     CREATE TABLE IF NOT EXISTS ai_settings (
       key TEXT PRIMARY KEY,
@@ -110,7 +136,7 @@ export function initDatabase(): void {
     )
   `)
 
-  // 日志表
+  // 6. 日志表
   database.exec(`
     CREATE TABLE IF NOT EXISTS logs (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -123,14 +149,14 @@ export function initDatabase(): void {
 
   // 创建索引
   database.exec(`
-    CREATE INDEX IF NOT EXISTS idx_users_qq_id ON users(qq_id);
+    CREATE INDEX IF NOT EXISTS idx_user_settings_user_id ON user_settings(user_id);
     CREATE INDEX IF NOT EXISTS idx_ai_user_id ON ai_conversations(user_id);
     CREATE INDEX IF NOT EXISTS idx_ai_timestamp ON ai_conversations(timestamp);
     CREATE INDEX IF NOT EXISTS idx_logs_type ON logs(type);
     CREATE INDEX IF NOT EXISTS idx_logs_timestamp ON logs(timestamp);
   `)
 
-  console.log('[DB] Database initialized successfully')
+  console.log('[DB] Database initialized successfully (v2 schema)')
 }
 
 /**
