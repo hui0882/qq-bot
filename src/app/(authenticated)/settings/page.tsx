@@ -20,6 +20,18 @@ interface Config {
       handler: string
     }>
   }
+  ai?: {
+    enabled: boolean
+    baseUrl: string
+    apiKey: string
+    model: string
+    maxTokens: number
+    temperature: number
+    maxContextRounds: number
+    defaultReplyType: 'text' | 'voice'
+    debugContext: boolean
+    fileReplyEnabled: boolean
+  }
   friendRequest: { mode: 'auto' | 'manual' }
   auth: { token: string }
   log: { maxEntries: number; persistToFile: boolean; logDir: string }
@@ -282,6 +294,128 @@ export default function SettingsPage() {
           <p className="text-xs text-amber-600">⚠️ 用户自定义已开启，全局回复模式设置已禁用</p>
         )}
         <p className="text-xs text-muted-foreground">音色: {config.tts?.voice || '茉莉'} · 风格: {config.tts?.style || '温柔'}</p>
+      </div>
+
+      {/* AI */}
+      <div className="rounded-lg border p-6 space-y-4">
+        <h2 className="text-lg font-semibold">AI 聊天</h2>
+        <p className="text-sm text-muted-foreground">接入大语言模型，实现智能对话回复</p>
+
+        <label className="flex items-center gap-3 rounded-lg border px-4 py-3 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={config.ai?.enabled || false}
+            onChange={(e) => setConfig({ ...config, ai: { ...config.ai!, enabled: e.target.checked } })}
+            className="h-4 w-4"
+          />
+          <div>
+            <div className="text-sm font-medium">启用 AI 回复</div>
+            <div className="text-xs text-muted-foreground">开启后私聊消息将由 AI 处理回复</div>
+          </div>
+        </label>
+
+        <div>
+          <label className="mb-1 block text-sm font-medium">API 地址</label>
+          <input
+            type="text"
+            value={config.ai?.baseUrl || ''}
+            onChange={(e) => setConfig({ ...config, ai: { ...config.ai!, baseUrl: e.target.value } })}
+            placeholder="https://api.openai.com/v1"
+            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 font-mono text-sm"
+          />
+        </div>
+
+        <div>
+          <label className="mb-1 block text-sm font-medium">API Key</label>
+          <MaskedInput
+            value={config.ai?.apiKey || ''}
+            onChange={(v) => setConfig({ ...config, ai: { ...config.ai!, apiKey: v } })}
+            placeholder="sk-..."
+          />
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-2">
+          <div>
+            <label className="mb-1 block text-sm font-medium">模型名称</label>
+            <input
+              type="text"
+              value={config.ai?.model || ''}
+              onChange={(e) => setConfig({ ...config, ai: { ...config.ai!, model: e.target.value } })}
+              placeholder="gpt-4o"
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium">最大 Token 数</label>
+            <input
+              type="number"
+              value={config.ai?.maxTokens || 2048}
+              onChange={(e) => setConfig({ ...config, ai: { ...config.ai!, maxTokens: parseInt(e.target.value) || 2048 } })}
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            />
+          </div>
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-2">
+          <div>
+            <label className="mb-1 block text-sm font-medium">Temperature</label>
+            <input
+              type="number"
+              step="0.1"
+              min="0"
+              max="2"
+              value={config.ai?.temperature || 0.7}
+              onChange={(e) => setConfig({ ...config, ai: { ...config.ai!, temperature: parseFloat(e.target.value) || 0.7 } })}
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium">上下文轮数</label>
+            <input
+              type="number"
+              min="1"
+              max="50"
+              value={config.ai?.maxContextRounds || 10}
+              onChange={(e) => setConfig({ ...config, ai: { ...config.ai!, maxContextRounds: parseInt(e.target.value) || 10 } })}
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            />
+          </div>
+        </div>
+
+        <div>
+          <label className="mb-2 block text-sm font-medium">默认回复方式</label>
+          <div className="flex gap-3">
+            <label className={`flex items-center gap-2 rounded-lg border-2 px-4 py-3 cursor-pointer transition-colors ${config.ai?.defaultReplyType === 'text' ? 'border-primary bg-primary/5' : 'border-muted hover:border-muted-foreground/30'}`}>
+              <input type="radio" name="aiReplyType" value="text" checked={config.ai?.defaultReplyType === 'text'} onChange={() => setConfig({ ...config, ai: { ...config.ai!, defaultReplyType: 'text' } })} className="h-4 w-4" />
+              <div><div className="text-sm font-medium">文本</div></div>
+            </label>
+            <label className={`flex items-center gap-2 rounded-lg border-2 px-4 py-3 cursor-pointer transition-colors ${config.ai?.defaultReplyType === 'voice' ? 'border-primary bg-primary/5' : 'border-muted hover:border-muted-foreground/30'}`}>
+              <input type="radio" name="aiReplyType" value="voice" checked={config.ai?.defaultReplyType === 'voice'} onChange={() => setConfig({ ...config, ai: { ...config.ai!, defaultReplyType: 'voice' } })} className="h-4 w-4" />
+              <div><div className="text-sm font-medium">语音</div></div>
+            </label>
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-3">
+          <label className="flex items-center gap-2 text-sm cursor-pointer">
+            <input
+              type="checkbox"
+              checked={config.ai?.debugContext || false}
+              onChange={(e) => setConfig({ ...config, ai: { ...config.ai!, debugContext: e.target.checked } })}
+              className="h-4 w-4"
+            />
+            记录模型上下文（调试模式）
+          </label>
+          <label className="flex items-center gap-2 text-sm cursor-pointer">
+            <input
+              type="checkbox"
+              checked={config.ai?.fileReplyEnabled || false}
+              onChange={(e) => setConfig({ ...config, ai: { ...config.ai!, fileReplyEnabled: e.target.checked } })}
+              className="h-4 w-4"
+            />
+            收到文件时触发 AI 回复
+          </label>
+        </div>
       </div>
 
       {/* 命令管理 */}
