@@ -4,7 +4,7 @@
 import { useState } from 'react'
 import { LogViewer } from '@/components/log-viewer'
 
-type LogFilter = 'request' | 'event' | 'system' | undefined
+type LogFilter = 'request' | 'event' | 'system' | 'ai' | undefined
 
 export default function LogsPage() {
   const [filter, setFilter] = useState<LogFilter>(undefined)
@@ -14,7 +14,7 @@ export default function LogsPage() {
       <h1 className="text-2xl font-bold">日志</h1>
 
       <div className="flex gap-2">
-        {([undefined, 'request', 'event', 'system'] as LogFilter[]).map((f) => (
+        {([undefined, 'request', 'event', 'system', 'ai'] as LogFilter[]).map((f) => (
           <button
             key={f || 'all'}
             onClick={() => setFilter(f)}
@@ -22,7 +22,7 @@ export default function LogsPage() {
               filter === f ? 'bg-primary text-primary-foreground' : 'border hover:bg-accent'
             }`}
           >
-            {f === undefined ? '全部' : f === 'request' ? '请求' : f === 'event' ? '事件' : '系统'}
+            {f === undefined ? '全部' : f === 'request' ? '请求' : f === 'event' ? '事件' : f === 'system' ? '系统' : 'AI'}
           </button>
         ))}
       </div>
