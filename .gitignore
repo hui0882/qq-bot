@@ -44,6 +44,8 @@ next-env.d.ts
 data/logs/
 data/tmp/
 data/config.json
+data/user-configs.json
+data/ai-context.json
 .playwright-mcp/
 
 # Internal dev docs (not for GitHub)
