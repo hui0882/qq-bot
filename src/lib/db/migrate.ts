@@ -1,13 +1,13 @@
 /**
  * 数据迁移工具
- * 将现有 JSON 数据迁移到 SQLite
+ * 将现有 JSON 数据迁移到 SQLite（v2 架构）
  */
 
 import { readFileSync, existsSync, renameSync } from 'fs'
 import { join } from 'path'
 import { db, initDatabase } from './index'
-import { upsertUserConfig } from './queries/users'
-import { saveAIContext } from './queries/ai'
+import { getOrCreateUser, setUserSetting } from './queries/users'
+import { aiContext } from './queries/ai'
 
 const DATA_DIR = join(process.cwd(), 'data')
 
@@ -43,9 +43,11 @@ function migrateUserConfigs(): number {
 
     let count = 0
     for (const [qqId, config] of Object.entries(configs.users)) {
-      upsertUserConfig(qqId, {
-        response_type: config.responseType as 'text' | 'voice',
-      })
+      // 创建用户
+      getOrCreateUser(qqId)
+
+      // 迁移回复类型到 user_settings 表
+      setUserSetting(qqId, 'response_type', config.responseType)
       count++
     }
 
@@ -83,7 +85,7 @@ function migrateAIContext(): number {
         const assistantMsg = sortedMessages[i + 1]
 
         if (userMsg.role === 'user' && assistantMsg.role === 'assistant') {
-          saveAIContext(userId, userMsg.content, assistantMsg.content)
+          aiContext.saveContext(userId, userMsg.content, assistantMsg.content)
           count++
         }
       }
@@ -117,7 +119,7 @@ function backupOldFiles(): void {
  * 执行完整迁移
  */
 export function runMigration(): void {
-  console.log('[Migrate] Starting migration...')
+  console.log('[Migrate] Starting migration (v2 schema)...')
 
   // 初始化数据库表
   initDatabase()
