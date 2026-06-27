@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
       const ws = body.ws as Record<string, unknown>
       const wsClean: Record<string, unknown> = { ...ws }
       // Only include token if it's provided and not masked
-      if (ws.token === '***' || ws.token === undefined) {
+      if (ws.token === '***' || ws.token === '••••••••' || ws.token === undefined) {
         delete wsClean.token
       }
       safePartial.ws = wsClean
@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
     if (body.api) {
       const api = body.api as Record<string, unknown>
       const apiClean: Record<string, unknown> = { ...api }
-      if (api.token === '***' || api.token === undefined) {
+      if (api.token === '***' || api.token === '••••••••' || api.token === undefined) {
         delete apiClean.token
       }
       safePartial.api = apiClean
@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
     if (body.tts) {
       const tts = body.tts as Record<string, unknown>
       const ttsClean: Record<string, unknown> = { ...tts }
-      if (tts.apiKey === '***' || tts.apiKey === undefined) {
+      if (tts.apiKey === '***' || tts.apiKey === '••••••••' || tts.apiKey === undefined) {
         delete ttsClean.apiKey
       }
       safePartial.tts = ttsClean
@@ -60,7 +60,7 @@ export async function POST(request: NextRequest) {
     if (body.auth) {
       const auth = body.auth as Record<string, unknown>
       // Only include auth if token is not masked
-      if (auth.token && auth.token !== '***') {
+      if (auth.token && auth.token !== '***' && auth.token !== '••••••••') {
         safePartial.auth = auth
       }
     }
@@ -71,6 +71,16 @@ export async function POST(request: NextRequest) {
 
     if (body.commands) {
       safePartial.commands = body.commands
+    }
+
+    if (body.ai) {
+      const ai = body.ai as Record<string, unknown>
+      const aiClean: Record<string, unknown> = { ...ai }
+      // Only include apiKey if it's provided and not masked
+      if (ai.apiKey === '••••••••' || ai.apiKey === '***' || ai.apiKey === undefined) {
+        delete aiClean.apiKey
+      }
+      safePartial.ai = aiClean
     }
 
     // Validate WS URL
