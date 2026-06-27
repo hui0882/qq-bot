@@ -6,7 +6,7 @@ import React, { useEffect, useState, useRef } from 'react'
 interface LogEntry {
   id: string
   timestamp: number
-  type: 'request' | 'event' | 'system'
+  type: 'request' | 'event' | 'system' | 'ai'
   direction?: 'outgoing' | 'incoming'
   action?: string
   echo?: string
@@ -16,7 +16,7 @@ interface LogEntry {
 }
 
 interface LogViewerProps {
-  filter?: 'request' | 'event' | 'system'
+  filter?: 'request' | 'event' | 'system' | 'ai'
 }
 
 export function LogViewer({ filter }: LogViewerProps) {
