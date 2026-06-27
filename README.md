@@ -83,19 +83,32 @@ napcatQQ/
 │   │   ├── api/                # API 路由
 │   │   └── login/              # 登录页
 │   ├── lib/
+│   │   ├── db/                 # SQLite 数据库
+│   │   │   ├── index.ts        # 数据库连接和初始化
+│   │   │   ├── init.ts         # 启动初始化脚本
+│   │   │   ├── migrate.ts      # 数据迁移工具
+│   │   │   └── queries/        # 查询封装
+│   │   │       ├── users.ts    # 用户配置查询
+│   │   │       ├── ai.ts       # AI 配置和上下文
+│   │   │       └── logs.ts     # 日志查询
+│   │   ├── ai/                 # AI 聊天模块
+│   │   │   ├── types.ts        # AI 类型定义
+│   │   │   ├── llm-client.ts   # LLM 调用客户端
+│   │   │   ├── prompt.ts       # 提示词构建
+│   │   │   └── index.ts        # AI 管道入口
 │   │   ├── napcat-ws.ts        # WebSocket 客户端（事件接收 + API 请求）
 │   │   ├── config.ts           # 配置管理（热重载）
 │   │   ├── logger.ts           # 日志系统
 │   │   ├── tts.ts              # TTS 语音合成
 │   │   ├── voice-reply.ts      # 自动回复
 │   │   ├── command-handler.ts  # 命令处理
-│   │   ├── user-config.ts      # 用户配置存储
+│   │   ├── user-config.ts      # 用户配置存储（SQLite）
 │   │   └── friend-request.ts   # 好友请求处理
 │   ├── components/             # 可复用组件
 │   └── types/                  # TypeScript 类型
 ├── data/
 │   ├── config.json             # 主配置（gitignore）
-│   ├── user-configs.json       # 用户配置
+│   ├── napcat.db               # SQLite 数据库（gitignore）
 │   └── logs/                   # 日志文件
 ├── docs/                       # 文档
 └── OpenAPI.md                  # NapCat API 文档
@@ -185,6 +198,8 @@ pm2 start npm --name napcat-platform -- start
 | shadcn/ui | 组件库 |
 | Node.js WebSocket | WS 客户端 |
 | chokidar | 配置热重载 |
+| better-sqlite3 | SQLite 数据库 |
+| OpenAI API | AI 聊天能力 |
 
 ## 许可证
 
