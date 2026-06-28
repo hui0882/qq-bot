@@ -1,7 +1,7 @@
 // src/lib/ai/types.ts
 
 export interface ChatMessage {
-  role: 'system' | 'user' | 'assistant'
+  role: 'system' | 'user' | 'assistant' | 'tool'
   content: string
   timestamp?: number
   /** 工具调用（assistant 消息） */
