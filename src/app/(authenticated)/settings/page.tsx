@@ -31,6 +31,7 @@ interface Config {
     defaultReplyType: 'text' | 'voice'
     debugContext: boolean
     fileReplyEnabled: boolean
+    systemPrompt: string
   }
   friendRequest: { mode: 'auto' | 'manual' }
   auth: { token: string }
@@ -313,6 +314,18 @@ export default function SettingsPage() {
             <div className="text-xs text-muted-foreground">开启后私聊消息将由 AI 处理回复</div>
           </div>
         </label>
+
+        <div>
+          <label className="mb-1 block text-sm font-medium">系统提示词</label>
+          <textarea
+            value={config.ai?.systemPrompt || ''}
+            onChange={(e) => setConfig({ ...config, ai: { ...config.ai!, systemPrompt: e.target.value } })}
+            placeholder="你是一个友好、有帮助的 AI 助手。请用中文回复。"
+            rows={4}
+            className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-y min-h-[80px]"
+          />
+          <p className="mt-1 text-xs text-muted-foreground">定义 AI 的角色和行为规则，所有用户共享此提示词。语音模式会自动追加简洁回复规则。</p>
+        </div>
 
         <div>
           <label className="mb-1 block text-sm font-medium">API 地址</label>
