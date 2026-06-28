@@ -30,21 +30,21 @@ jobs:
             cd "$DEPLOY_DIR" || exit 1
 
             echo "拉取最新代码..."
-            git pull origin main
+            git pull origin main || { echo "❌ 拉取代码失败"; exit 1; }
 
             echo "安装依赖..."
-            npm install --production=false
+            npm install --production=false || { echo "❌ 安装依赖失败"; exit 1; }
 
             echo "构建项目..."
-            npm run build
+            npm run build || { echo "❌ 构建失败"; exit 1; }
 
             # 启动/重启服务
             if command -v pm2 &> /dev/null && pm2 list 2>/dev/null | grep -q "napcat-platform"; then
               echo "重启服务..."
-              pm2 restart napcat-platform
+              pm2 restart napcat-platform || { echo "❌ 重启服务失败"; exit 1; }
             else
               echo "首次启动服务..."
-              pm2 start npm --name napcat-platform -- start
+              pm2 start npm --name napcat-platform -- start || { echo "❌ 启动服务失败"; exit 1; }
               pm2 save
             fi
 
