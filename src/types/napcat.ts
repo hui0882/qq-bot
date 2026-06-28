@@ -224,6 +224,7 @@ export interface AIConfig {
   defaultReplyType: 'text' | 'voice'
   debugContext: boolean
   fileReplyEnabled: boolean
+  systemPrompt: string
 }
 
 // ============ 平台配置 ============

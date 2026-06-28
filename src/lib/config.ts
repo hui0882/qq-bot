@@ -74,6 +74,13 @@ const DEFAULT_CONFIG: PlatformConfig = {
           requireTtsEnabled: true,
         },
       },
+      {
+        name: 'prompt',
+        description: '设置/查看/清除个人提示词',
+        usage: '/prompt [内容|clear]',
+        enabled: true,
+        handler: 'builtin:prompt',
+      },
     ],
   },
   ai: {
@@ -87,6 +94,7 @@ const DEFAULT_CONFIG: PlatformConfig = {
     defaultReplyType: 'text',
     debugContext: false,
     fileReplyEnabled: false,
+    systemPrompt: '你是一个友好、有帮助的 AI 助手。请用中文回复。',
   },
 }
 
@@ -195,6 +203,7 @@ class ConfigManager {
     if (old.ai?.enabled !== curr.ai?.enabled) keys.push('ai.enabled')
     if (old.ai?.apiKey !== curr.ai?.apiKey) keys.push('ai.apiKey')
     if (old.ai?.debugContext !== curr.ai?.debugContext) keys.push('ai.debugContext')
+    if (old.ai?.systemPrompt !== curr.ai?.systemPrompt) keys.push('ai.systemPrompt')
     return keys
   }
 
