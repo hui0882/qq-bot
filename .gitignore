@@ -54,3 +54,6 @@ data/napcat.db-shm
 
 # Internal dev docs (not for GitHub)
 docs/dev/
+
+# Local change records (not for GitHub)
+changes/
