@@ -3,3 +3,4 @@
 
 import './help'
 import './response-type'
+import './prompt'

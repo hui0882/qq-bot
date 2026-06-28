@@ -174,7 +174,14 @@ export async function handleVoiceReply(event: Record<string, unknown>): Promise<
     logger.logAI({
       userId,
       direction: 'response',
-      data: { userMessage: textContent, error: response.error, duration },
+      data: {
+        userMessage: textContent,
+        error: response.error,
+        duration,
+        systemPrompt: response.promptMeta?.systemPrompt,
+        personalPrompt: response.promptMeta?.personalPrompt,
+        context: response.promptMeta?.context,
+      },
     })
     await sendTextReply(userId, `AI 请求失败：${response.error}`)
     return
@@ -189,6 +196,15 @@ export async function handleVoiceReply(event: Record<string, unknown>): Promise<
       modelResponse: response.content,
       usage: response.usage,
       duration,
+      systemPrompt: response.promptMeta?.systemPrompt,
+      personalPrompt: response.promptMeta?.personalPrompt,
+      context: response.promptMeta?.context,
+      toolCall: response.toolResult ? {
+        tool: response.toolResult.tool,
+        args: response.toolCalls?.[0]?.function?.arguments ? JSON.parse(response.toolCalls[0].function.arguments) : {},
+        success: response.toolResult.success,
+        message: response.toolResult.message,
+      } : undefined,
     },
   })
 

@@ -175,7 +175,10 @@ class Logger {
     data: {
       userMessage: string
       modelResponse?: string
+      systemPrompt?: string
+      personalPrompt?: string | null
       context?: Array<{ role: string; content: string }>
+      toolCall?: { tool: string; args?: Record<string, unknown>; success: boolean; message: string }
       usage?: { prompt: number; completion: number }
       duration?: number
       error?: string
