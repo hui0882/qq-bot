@@ -1,8 +1,23 @@
 // src/lib/config.ts
 import { readFileSync, writeFileSync, copyFileSync, existsSync, mkdirSync } from 'fs'
 import { join } from 'path'
-import type { PlatformConfig } from '@/types/napcat'
+import type { PlatformConfig, CommandDefinition } from '@/types/napcat'
 import { initializeDatabase } from './db/init'
+
+/**
+ * 合并默认命令定义与用户自定义定义
+ * 以默认定义为基础，用用户同名项覆盖，再追加用户独有的项
+ */
+function mergeDefinitions(
+  defaults: CommandDefinition[],
+  userDefs?: CommandDefinition[],
+): CommandDefinition[] {
+  if (!userDefs || userDefs.length === 0) return defaults
+  const map = new Map<string, CommandDefinition>()
+  for (const def of defaults) map.set(def.name, def)
+  for (const def of userDefs) map.set(def.name, def) // 用户覆盖默认
+  return Array.from(map.values())
+}
 
 const CONFIG_PATH = join(process.cwd(), 'data', 'config.json')
 const TEMPLATE_PATH = join(process.cwd(), 'data', 'config.template.json')
@@ -155,7 +170,10 @@ class ConfigManager {
         commands: {
           ...DEFAULT_CONFIG.commands,
           ...parsed.commands,
-          definitions: parsed.commands?.definitions || DEFAULT_CONFIG.commands.definitions,
+          definitions: mergeDefinitions(
+            DEFAULT_CONFIG.commands.definitions,
+            parsed.commands?.definitions,
+          ),
         },
         ai: { ...DEFAULT_CONFIG.ai, ...parsed.ai },
       }
