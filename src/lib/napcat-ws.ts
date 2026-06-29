@@ -5,7 +5,7 @@ import type { OB11ActionResponse, WSConnectionStatus } from '@/types/napcat'
 import { configManager } from './config'
 import { logger } from './logger'
 import { handleVoiceReply } from './voice-reply'
-import { handleFriendRequestEvent } from './friend-request'
+import { handleFriendRequestEvent, handleFriendAddNotice } from './friend-request'
 
 type ResponseCallback = (response: OB11ActionResponse) => void
 type EventCallback = (event: Record<string, unknown>) => void
@@ -99,6 +99,7 @@ class NapCatWSClient {
               for (const cb of this.eventCallbacks) { cb(msg) }
               handleVoiceReply(msg)
               handleFriendRequestEvent(msg)
+              handleFriendAddNotice(msg)
             }
           } else {
             // It's an event
@@ -106,6 +107,7 @@ class NapCatWSClient {
             for (const cb of this.eventCallbacks) { cb(msg) }
             handleVoiceReply(msg)
             handleFriendRequestEvent(msg)
+            handleFriendAddNotice(msg)
           }
         } catch {
           logger.logSystem('Failed to parse WS message', { raw: String(event.data).slice(0, 200) })

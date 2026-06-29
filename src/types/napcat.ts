@@ -259,6 +259,7 @@ export interface PlatformConfig {
   }
   friendRequest: {
     mode: 'auto' | 'manual'
+    welcomeMessage: string
   }
   log: {
     maxEntries: number

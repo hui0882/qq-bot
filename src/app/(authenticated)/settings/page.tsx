@@ -33,7 +33,7 @@ interface Config {
     fileReplyEnabled: boolean
     systemPrompt: string
   }
-  friendRequest: { mode: 'auto' | 'manual' }
+  friendRequest: { mode: 'auto' | 'manual'; welcomeMessage: string }
   auth: { token: string }
   log: { maxEntries: number; persistToFile: boolean; logDir: string }
 }
@@ -494,13 +494,24 @@ export default function SettingsPage() {
         <p className="text-sm text-muted-foreground">收到好友申请时的处理方式</p>
         <div className="flex gap-3">
           <label className={`flex items-center gap-2 rounded-lg border-2 px-4 py-3 cursor-pointer transition-colors ${config.friendRequest?.mode === 'auto' ? 'border-primary bg-primary/5' : 'border-muted hover:border-muted-foreground/30'}`}>
-            <input type="radio" name="friendRequest" value="auto" checked={config.friendRequest?.mode === 'auto'} onChange={() => setConfig({ ...config, friendRequest: { mode: 'auto' } })} className="h-4 w-4" />
+            <input type="radio" name="friendRequest" value="auto" checked={config.friendRequest?.mode === 'auto'} onChange={() => setConfig({ ...config, friendRequest: { ...config.friendRequest, mode: 'auto' } })} className="h-4 w-4" />
             <div><div className="text-sm font-medium">自动同意</div><div className="text-xs text-muted-foreground">直接添加为好友</div></div>
           </label>
           <label className={`flex items-center gap-2 rounded-lg border-2 px-4 py-3 cursor-pointer transition-colors ${config.friendRequest?.mode === 'manual' ? 'border-primary bg-primary/5' : 'border-muted hover:border-muted-foreground/30'}`}>
-            <input type="radio" name="friendRequest" value="manual" checked={config.friendRequest?.mode === 'manual'} onChange={() => setConfig({ ...config, friendRequest: { mode: 'manual' } })} className="h-4 w-4" />
+            <input type="radio" name="friendRequest" value="manual" checked={config.friendRequest?.mode === 'manual'} onChange={() => setConfig({ ...config, friendRequest: { ...config.friendRequest, mode: 'manual' } })} className="h-4 w-4" />
             <div><div className="text-sm font-medium">手动同意</div><div className="text-xs text-muted-foreground">在好友请求中处理</div></div>
           </label>
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium">欢迎消息</label>
+          <textarea
+            value={config.friendRequest?.welcomeMessage || ''}
+            onChange={(e) => setConfig({ ...config, friendRequest: { ...config.friendRequest, welcomeMessage: e.target.value } })}
+            placeholder="添加好友后自动发送的消息（留空则不发送）"
+            rows={3}
+            className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+          />
+          <p className="mt-1 text-xs text-muted-foreground">添加好友成功后自动发送，不调用 AI，但会记录到对话上下文</p>
         </div>
       </div>
 
