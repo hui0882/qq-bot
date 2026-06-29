@@ -36,22 +36,6 @@ interface ActionDef {
   confirm?: string
 }
 
-const CACHE_KEY_FRIENDS = 'napcat_cache_friends'
-const CACHE_KEY_GROUPS = 'napcat_cache_groups'
-
-function getCached<T>(key: string): T | null {
-  if (typeof window === 'undefined') return null
-  try {
-    const raw = localStorage.getItem(key)
-    if (!raw) return null
-    return JSON.parse(raw) as T
-  } catch { return null }
-}
-
-function setCache<T>(key: string, data: T): void {
-  if (typeof window === 'undefined') return
-  try { localStorage.setItem(key, JSON.stringify(data)) } catch { /* ignore */ }
-}
 
 export default function ContactsPage() {
   const [tab, setTab] = useState<Tab>('friends')
@@ -66,13 +50,6 @@ export default function ContactsPage() {
     flag: string; userId: number; nickname: string; comment: string; timestamp: number
   }>>([])
 
-  // Load from cache on mount
-  useEffect(() => {
-    const cachedFriends = getCached<Friend[]>(CACHE_KEY_FRIENDS)
-    if (cachedFriends) setFriends(cachedFriends)
-    const cachedGroups = getCached<Group[]>(CACHE_KEY_GROUPS)
-    if (cachedGroups) setGroups(cachedGroups)
-  }, [])
 
   const loadPendingRequests = async () => {
     setLoading(true)
@@ -143,32 +120,20 @@ export default function ContactsPage() {
     return res.json()
   }
 
-  const loadFriends = async (force = false) => {
-    if (!force) {
-      const cached = getCached<Friend[]>(CACHE_KEY_FRIENDS)
-      if (cached) { setFriends(cached); return }
-    }
+  const loadFriends = async () => {
     setLoading(true)
     const res = await callApi('get_friend_list')
     if (res.data) {
-      const list = Array.isArray(res.data) ? res.data : []
-      setFriends(list)
-      setCache(CACHE_KEY_FRIENDS, list)
+      setFriends(Array.isArray(res.data) ? res.data : [])
     }
     setLoading(false)
   }
 
-  const loadGroups = async (force = false) => {
-    if (!force) {
-      const cached = getCached<Group[]>(CACHE_KEY_GROUPS)
-      if (cached) { setGroups(cached); return }
-    }
+  const loadGroups = async () => {
     setLoading(true)
     const res = await callApi('get_group_list')
     if (res.data) {
-      const list = Array.isArray(res.data) ? res.data : []
-      setGroups(list)
-      setCache(CACHE_KEY_GROUPS, list)
+      setGroups(Array.isArray(res.data) ? res.data : [])
     }
     setLoading(false)
   }
@@ -401,8 +366,8 @@ export default function ContactsPage() {
         />
         <button
           onClick={() => {
-            if (tab === 'friends') loadFriends(true)
-            else if (tab === 'groups') loadGroups(true)
+            if (tab === 'friends') loadFriends()
+            else if (tab === 'groups') loadGroups()
             else if (tab === 'requests') loadPendingRequests()
           }}
           className="inline-flex items-center justify-center rounded-md border bg-background px-4 py-2 text-sm font-medium hover:bg-accent"
