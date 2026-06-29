@@ -10,6 +10,7 @@ const NAV_ITEMS = [
   { href: '/dashboard', label: '状态监控', icon: '📊' },
   { href: '/events', label: '事件', icon: '📨' },
   { href: '/contacts', label: '联系人', icon: '👥' },
+  { href: '/users', label: '用户查询', icon: '🔍' },
   { href: '/messages', label: '消息调试', icon: '💬' },
   { href: '/debugger', label: 'API 调试', icon: '🔧' },
   { href: '/logs', label: '日志', icon: '📋' },
