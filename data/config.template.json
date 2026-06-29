@@ -64,6 +64,13 @@
           "requireAllowUserOverride": true,
           "requireTtsEnabled": true
         }
+      },
+      {
+        "name": "prompt",
+        "description": "设置/查看/清除个人提示词",
+        "usage": "/prompt [内容|clear]",
+        "enabled": true,
+        "handler": "builtin:prompt"
       }
     ]
   }
