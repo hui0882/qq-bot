@@ -4,6 +4,7 @@
 import { napcatWS } from './napcat-ws'
 import { configManager } from './config'
 import { logger } from './logger'
+import { aiContext } from './db/queries/ai'
 
 export interface PendingFriendRequest {
   flag: string
@@ -94,4 +95,48 @@ export async function rejectFriendRequest(flag: string): Promise<{ success: bool
     return { success: true }
   }
   return { success: false, message: result.message }
+}
+
+/**
+ * 处理好友添加成功的通知事件
+ * 发送欢迎消息并记录到 AI 上下文
+ */
+export async function handleFriendAddNotice(event: Record<string, unknown>): Promise<void> {
+  const postType = event.post_type as string
+  const noticeType = event.notice_type as string
+  if (postType !== 'notice' || noticeType !== 'friend_add') return
+
+  const userId = event.user_id as number
+  if (!userId) return
+
+  const config = configManager.getConfig()
+  const welcomeMessage = config.friendRequest?.welcomeMessage
+
+  if (!welcomeMessage || welcomeMessage.trim().length === 0) {
+    logger.logSystem('WelcomeMessage: skipped (not configured)', { userId })
+    return
+  }
+
+  logger.logSystem('WelcomeMessage: sending', { userId, message: welcomeMessage.slice(0, 50) })
+
+  // 发送欢迎消息
+  const result = await napcatWS.sendAction('send_msg', {
+    message_type: 'private',
+    user_id: String(userId),
+    message: [{ type: 'text', data: { text: welcomeMessage } }],
+  })
+
+  if (result.status === 'ok') {
+    logger.logSystem('WelcomeMessage: sent', { userId })
+
+    // 记录到 AI 上下文（作为 assistant 消息，不需要用户消息）
+    try {
+      aiContext.saveContext(userId, '[好友添加]', welcomeMessage)
+      logger.logSystem('WelcomeMessage: saved to context', { userId })
+    } catch (err) {
+      logger.logSystem('WelcomeMessage: save context failed', { error: (err as Error).message })
+    }
+  } else {
+    logger.logSystem('WelcomeMessage: send failed', { error: result.message })
+  }
 }
