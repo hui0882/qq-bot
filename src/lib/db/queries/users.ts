@@ -26,6 +26,15 @@ export interface UserSetting {
 // ============ 用户基础信息 ============
 
 /**
+ * 获取所有用户
+ */
+export function getAllUsers(): User[] {
+  return db.prepare(
+    'SELECT * FROM users ORDER BY updated_at DESC'
+  ).all() as User[]
+}
+
+/**
  * 获取或创建用户
  */
 export function getOrCreateUser(qqId: string): User {
