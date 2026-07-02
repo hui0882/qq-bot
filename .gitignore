@@ -20,8 +20,12 @@
 # production
 /build
 
-# misc
+# OS generated files
 .DS_Store
+Thumbs.db
+Desktop.ini
+
+# misc
 *.pem
 
 # debug
@@ -40,6 +44,12 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
+# Claude / AI tooling
+.claude/
+
+# Playwright
+.playwright-mcp/
+
 # NapCat Platform
 data/logs/
 data/tmp/
@@ -50,7 +60,6 @@ data/napcat.db
 data/napcat.db-wal
 data/napcat.db-shm
 *.backup.*
-.playwright-mcp/
 
 # Internal dev docs (not for GitHub)
 docs/dev/
