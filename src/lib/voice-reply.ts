@@ -200,6 +200,11 @@ export async function handleVoiceReply(event: Record<string, unknown>): Promise<
         success: response.toolResult.success,
         message: response.toolResult.message,
       } : undefined,
+      toolCalls: response.toolCalls?.map(tc => ({
+        id: tc.id,
+        name: tc.function.name,
+        arguments: tc.function.arguments,
+      })),
     },
   })
 

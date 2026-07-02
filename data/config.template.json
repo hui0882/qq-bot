@@ -71,6 +71,13 @@
         "usage": "/prompt [内容|clear]",
         "enabled": true,
         "handler": "builtin:prompt"
+      },
+      {
+        "name": "clear",
+        "description": "清空 AI 对话上下文",
+        "usage": "/clear",
+        "enabled": true,
+        "handler": "builtin:clear"
       }
     ]
   }

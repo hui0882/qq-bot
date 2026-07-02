@@ -179,6 +179,7 @@ class Logger {
       personalPrompt?: string | null
       context?: Array<{ role: string; content: string }>
       toolCall?: { tool: string; args?: Record<string, unknown>; success: boolean; message: string }
+      toolCalls?: Array<{ id: string; name: string; arguments: string }>
       usage?: { prompt: number; completion: number }
       duration?: number
       error?: string
