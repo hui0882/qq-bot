@@ -4,3 +4,5 @@
 import './help'
 import './response-type'
 import './prompt'
+import '../../school/commands/set-config'
+import '../../school/commands/homework'

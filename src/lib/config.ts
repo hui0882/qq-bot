@@ -97,6 +97,20 @@ const DEFAULT_CONFIG: PlatformConfig = {
         enabled: true,
         handler: 'builtin:prompt',
       },
+      {
+        name: 'set-config',
+        description: '配置学校平台账号密码',
+        usage: '/set-config [账号] [密码]',
+        enabled: true,
+        handler: 'builtin:set-homework-config',
+      },
+      {
+        name: 'homework',
+        description: '查询待提交作业',
+        usage: '/homework',
+        enabled: true,
+        handler: 'builtin:homework',
+      },
     ],
   },
   ai: {
@@ -111,6 +125,10 @@ const DEFAULT_CONFIG: PlatformConfig = {
     debugContext: false,
     fileReplyEnabled: false,
     systemPrompt: '你是一个友好、有帮助的 AI 助手。请用中文回复。',
+  },
+  school: {
+    enabledCommands: true,
+    enabledAI: true,
   },
 }
 
@@ -177,6 +195,10 @@ class ConfigManager {
           ),
         },
         ai: { ...DEFAULT_CONFIG.ai, ...parsed.ai },
+        school: {
+          enabledCommands: parsed.school?.enabledCommands ?? DEFAULT_CONFIG.school!.enabledCommands,
+          enabledAI: parsed.school?.enabledAI ?? DEFAULT_CONFIG.school!.enabledAI,
+        },
       }
     } catch {
       return this.loadTemplate()
@@ -224,6 +246,8 @@ class ConfigManager {
     if (old.ai?.apiKey !== curr.ai?.apiKey) keys.push('ai.apiKey')
     if (old.ai?.debugContext !== curr.ai?.debugContext) keys.push('ai.debugContext')
     if (old.ai?.systemPrompt !== curr.ai?.systemPrompt) keys.push('ai.systemPrompt')
+    if (old.school?.enabledCommands !== curr.school?.enabledCommands) keys.push('school.enabledCommands')
+    if (old.school?.enabledAI !== curr.school?.enabledAI) keys.push('school.enabledAI')
     return keys
   }
 
@@ -242,6 +266,10 @@ class ConfigManager {
       log: { ...this.config.log, ...partial.log },
       commands: { ...this.config.commands, ...partial.commands },
       ai: { ...this.config.ai, ...partial.ai },
+      school: {
+        enabledCommands: partial.school?.enabledCommands ?? this.config.school?.enabledCommands ?? true,
+        enabledAI: partial.school?.enabledAI ?? this.config.school?.enabledAI ?? true,
+      },
     }
     writeFileSync(CONFIG_PATH, JSON.stringify(this.config, null, 2), 'utf-8')
   }
