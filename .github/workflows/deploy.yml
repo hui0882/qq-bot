@@ -18,8 +18,10 @@ jobs:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_KEY }}
-          port: ${{ secrets.DEPLOY_PORT || '22' }}
+          port: ${{ secrets.DEPLOY_PORT }}
           script: |
+            set -e
+
             # 加载环境变量
             source ~/.bashrc 2>/dev/null || source ~/.profile 2>/dev/null || true
             export PATH="$HOME/.npm-global/bin:$HOME/.local/bin:/usr/local/bin:$PATH"
@@ -33,7 +35,7 @@ jobs:
             git pull origin main || { echo "❌ 拉取代码失败"; exit 1; }
 
             echo "安装依赖..."
-            npm install --production=false || { echo "❌ 安装依赖失败"; exit 1; }
+            npm ci || { echo "❌ 安装依赖失败"; exit 1; }
 
             echo "构建项目..."
             npm run build || { echo "❌ 构建失败"; exit 1; }
