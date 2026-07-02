@@ -147,6 +147,18 @@ export function initDatabase(): void {
     )
   `)
 
+  // 7. 学校平台凭据表
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS school_credentials (
+      user_id TEXT NOT NULL,
+      school TEXT NOT NULL,
+      username TEXT NOT NULL,
+      password TEXT NOT NULL,
+      updated_at INTEGER NOT NULL,
+      PRIMARY KEY (user_id, school)
+    )
+  `)
+
   // 创建索引
   database.exec(`
     CREATE INDEX IF NOT EXISTS idx_user_settings_user_id ON user_settings(user_id);
