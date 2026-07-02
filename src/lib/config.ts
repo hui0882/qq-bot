@@ -111,6 +111,13 @@ const DEFAULT_CONFIG: PlatformConfig = {
         enabled: true,
         handler: 'builtin:homework',
       },
+      {
+        name: 'clear',
+        description: '清空 AI 对话上下文',
+        usage: '/clear',
+        enabled: true,
+        handler: 'builtin:clear',
+      },
     ],
   },
   ai: {
