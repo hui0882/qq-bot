@@ -6,6 +6,7 @@ import { aiContext, getUserAIConfig } from '@/lib/db/queries/ai'
 import { buildSystemPrompt } from './prompt'
 import { PROMPT_TOOLS, executeToolCall } from './tools'
 import { SCHOOL_TOOLS } from '@/lib/school/tools'
+import { logger } from '@/lib/logger'
 
 export type { LLMResponse }
 
@@ -81,7 +82,29 @@ export async function processAIMessage(
       args = JSON.parse(toolCall.function.arguments)
     } catch { /* 忽略解析错误 */ }
 
+    // 记录工具调用开始日志
+    const toolStartTime = Date.now()
+    logger.logSystem('AI: tool_call_start', {
+      userId,
+      tool: toolCall.function.name,
+      args,
+      toolCallId: toolCall.id,
+    })
+
     const toolResult = await executeToolCall(userId, toolCall.function.name, args)
+    const toolDuration = Date.now() - toolStartTime
+
+    // 记录工具调用完成日志
+    logger.logSystem('AI: tool_call_end', {
+      userId,
+      tool: toolCall.function.name,
+      args,
+      toolCallId: toolCall.id,
+      success: toolResult.success,
+      resultMessage: toolResult.message,
+      duration: toolDuration,
+    })
+
     response.toolResult = {
       tool: toolCall.function.name,
       ...toolResult,
