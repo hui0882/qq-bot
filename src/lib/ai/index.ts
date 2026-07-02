@@ -5,6 +5,7 @@ import { callLLM } from './llm-client'
 import { aiContext, getUserAIConfig } from '@/lib/db/queries/ai'
 import { buildSystemPrompt } from './prompt'
 import { PROMPT_TOOLS, executeToolCall } from './tools'
+import { SCHOOL_TOOLS } from '@/lib/school/tools'
 
 export type { LLMResponse }
 
@@ -62,7 +63,7 @@ export async function processAIMessage(
   let response = await callLLM({
     messages,
     config: llmConfig,
-    tools: PROMPT_TOOLS,
+    tools: [...PROMPT_TOOLS, ...SCHOOL_TOOLS],
   })
 
   // 7. 附加提示词元数据
@@ -80,7 +81,7 @@ export async function processAIMessage(
       args = JSON.parse(toolCall.function.arguments)
     } catch { /* 忽略解析错误 */ }
 
-    const toolResult = executeToolCall(userId, toolCall.function.name, args)
+    const toolResult = await executeToolCall(userId, toolCall.function.name, args)
     response.toolResult = {
       tool: toolCall.function.name,
       ...toolResult,

@@ -60,7 +60,7 @@ export interface ToolResult {
 /**
  * 执行工具调用，返回结果
  */
-export function executeToolCall(userId: number, toolName: string, args: Record<string, unknown>): ToolResult {
+export async function executeToolCall(userId: number, toolName: string, args: Record<string, unknown>): Promise<ToolResult> {
   switch (toolName) {
     case 'set_prompt': {
       const content = args.content as string
@@ -93,7 +93,14 @@ export function executeToolCall(userId: number, toolName: string, args: Record<s
       return { success: true, message: '✅ 个人提示词已清除，将使用全局默认提示词。' }
     }
 
-    default:
-      return { success: false, message: `未知工具: ${toolName}` }
+    default: {
+      // 尝试 school 工具（动态导入避免循环依赖）
+      try {
+        const { executeSchoolTool } = await import('@/lib/school/tools')
+        return await executeSchoolTool(userId, toolName)
+      } catch {
+        return { success: false, message: `未知工具: ${toolName}` }
+      }
+    }
   }
 }
