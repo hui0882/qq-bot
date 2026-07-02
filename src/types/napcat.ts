@@ -268,6 +268,10 @@ export interface PlatformConfig {
   }
   commands: CommandsConfig
   ai: AIConfig
+  school?: {
+    enabledCommands: boolean
+    enabledAI: boolean
+  }
 }
 
 // ============ 日志条目 ============
