@@ -9,7 +9,11 @@ import type { CronTask, ExecutionResult, AIContext } from './types'
 import { configManager } from '../config'
 import { napcatWS } from '../napcat-ws'
 import { logger } from '../logger'
-import { addTaskLog, updateTaskRunInfo } from './store'
+import { addTaskLog, updateTaskRunResult, incrementRunCount } from './store'
+import { callLLM } from '../ai/llm-client'
+import { getUserAIConfig } from '../db/queries/ai'
+import { textToSpeech } from '../tts'
+import { readFileSync, unlinkSync } from 'fs'
 
 // ============ 常量配置 ============
 
@@ -186,8 +190,8 @@ export async function executeTask(task: CronTask): Promise<ExecutionResult> {
         executedAt: Date.now(),
       })
 
-      // 更新任务执行信息
-      updateTaskRunInfo(task.id, 'success')
+      // 更新任务执行结果
+      updateTaskRunResult(task.id, 'success')
 
       return result
     } catch (error) {
@@ -235,8 +239,8 @@ export async function executeTask(task: CronTask): Promise<ExecutionResult> {
     executedAt: Date.now(),
   })
 
-  // 更新任务执行信息
-  updateTaskRunInfo(task.id, 'failed', lastError)
+  // 更新任务执行结果
+  updateTaskRunResult(task.id, 'failed', lastError)
 
   return result
 }
@@ -305,8 +309,8 @@ async function callAIWithRetry(
 /**
  * 调用 AI（带超时控制）
  *
- * 使用 AbortSignal.timeout 实现超时控制。
- * 调用 OpenAI 兼容 API。
+ * 使用项目标准的 callLLM 函数，自动读取用户自定义 AI 配置，
+ * 支持超时控制。
  */
 async function callAIWithTimeout(
   context: AIContext,
@@ -319,62 +323,66 @@ async function callAIWithTimeout(
     throw new Error('AI 未启用，请在配置中启用 AI')
   }
 
-  const baseUrl = config.ai.baseUrl
-  const apiKey = config.ai.apiKey
-  const model = config.ai.model
+  // 读取用户自定义 AI 配置（如果存在则覆盖全局配置）
+  const userIdNum = Number(context.userId)
+  const userAiConfig = !isNaN(userIdNum) ? getUserAIConfig(userIdNum) : null
+
+  const baseUrl = userAiConfig?.base_url || config.ai.baseUrl
+  const apiKey = userAiConfig?.api_key || config.ai.apiKey
+  const model = userAiConfig?.model || config.ai.model
 
   if (!baseUrl || !apiKey || !model) {
     throw new Error('AI 配置不完整，请检查 baseUrl、apiKey、model')
   }
 
-  const url = `${baseUrl.replace(/\/+$/, '')}/chat/completions`
+  const messages = [
+    { role: 'system' as const, content: context.systemPrompt },
+    { role: 'user' as const, content: '请执行定时任务。' },
+  ]
 
-  const body: Record<string, unknown> = {
-    model,
-    messages: [
-      { role: 'system', content: context.systemPrompt },
-      { role: 'user', content: '请执行定时任务。' },
-    ],
-    max_tokens: config.ai.maxTokens || 2048,
-    temperature: config.ai.temperature || 0.7,
+  // 记录超时到 context 中，通过 AbortSignal 实现
+  const originalCallLLM = callLLM
+
+  // 使用自定义超时（callLLM 默认 60s，任务级别可覆盖）
+  const result = await withTimeout(
+    originalCallLLM({
+      messages,
+      config: {
+        baseUrl,
+        apiKey,
+        model,
+        maxTokens: userAiConfig?.max_tokens || config.ai.maxTokens || 2048,
+        temperature: userAiConfig?.temperature || config.ai.temperature || 0.7,
+      },
+      tools: context.tools?.length ? context.tools as any : undefined,
+    }),
+    timeout,
+    'AI 调用超时',
+  )
+
+  if (result.error) {
+    throw new Error(result.error)
   }
 
-  // 如果有工具定义，添加到请求
-  if (context.tools && context.tools.length > 0) {
-    // 工具定义需要从工具名称映射，这里先传递名称列表
-    // 实际工具定义由 AI 模块维护
-    logger.logSystem('CronExecutor: tools_requested', { tools: context.tools })
-  }
-
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(timeout),
-  })
-
-  if (!response.ok) {
-    const errorText = await response.text()
-    throw new Error(`AI API 错误 (${response.status}): ${errorText}`)
-  }
-
-  const data = await response.json() as {
-    choices?: Array<{
-      message?: {
-        content?: string
-      }
-    }>
-  }
-
-  const content = data.choices?.[0]?.message?.content
-  if (!content) {
+  if (!result.content) {
     throw new Error('AI 返回空响应')
   }
 
-  return content
+  return result.content
+}
+
+/**
+ * 为 Promise 添加超时控制
+ */
+async function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  message: string,
+): Promise<T> {
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    setTimeout(() => reject(new Error(message)), timeoutMs)
+  })
+  return Promise.race([promise, timeoutPromise])
 }
 
 // ============ 消息发送 ============
@@ -382,9 +390,10 @@ async function callAIWithTimeout(
 /**
  * 发送结果给用户（带独立重试）
  *
- * 根据静默标记决定发送内容：
+ * 根据静默标记和输出格式决定发送内容：
  * - 静默：发送状态提示
- * - 非静默：发送 AI 回复内容
+ * - 非静默 + text：直接发送 AI 回复内容
+ * - 非静默 + voice：先 TTS 转语音再发送语音消息
  */
 async function sendResultWithRetry(
   task: CronTask,
@@ -396,10 +405,10 @@ async function sendResultWithRetry(
     : response
 
   return withRetry(
-    () => sendToUser(task.userId, content),
+    () => sendToUser(task.userId, content, task.outputFormat),
     SEND_MAX_RETRIES,
     'CronSend',
-    { taskId: task.id, taskName: task.name, userId: task.userId },
+    { taskId: task.id, taskName: task.name, userId: task.userId, format: task.outputFormat },
   )
 }
 
@@ -407,8 +416,51 @@ async function sendResultWithRetry(
  * 发送消息给用户
  *
  * 通过 WebSocket 发送私聊消息。
+ * 支持纯文本和语音两种输出格式。
  */
-async function sendToUser(userId: string, content: string): Promise<void> {
+async function sendToUser(
+  userId: string,
+  content: string,
+  outputFormat: 'text' | 'voice' = 'text',
+): Promise<void> {
+  // 语音输出：先 TTS 转语音
+  if (outputFormat === 'voice') {
+    const ttsResult = await textToSpeech(content)
+    if (ttsResult.success && ttsResult.audioPath) {
+      try {
+        const audioBuffer = readFileSync(ttsResult.audioPath)
+        const base64Audio = audioBuffer.toString('base64')
+        const config = configManager.getConfig()
+        const format = config.tts?.format || 'wav'
+        const mimeType = format === 'mp3' ? 'audio/mpeg' : `audio/${format}`
+
+        const result = await napcatWS.sendAction('send_private_msg', {
+          user_id: Number(userId),
+          message: [
+            {
+              type: 'record',
+              data: { file: `data:${mimeType};base64,${base64Audio}` },
+            },
+          ],
+        })
+
+        if (result.status !== 'ok') {
+          throw new Error(`发送语音消息失败: ${result.message}`)
+        }
+        return
+      } catch (err) {
+        logger.logSystem('CronExecutor: voice_fallback', {
+          userId,
+          error: err instanceof Error ? err.message : String(err),
+        })
+        // TTS 或发送失败时回退到文本
+      } finally {
+        try { unlinkSync(ttsResult.audioPath) } catch { /* ignore */ }
+      }
+    }
+  }
+
+  // 默认：文本输出
   const result = await napcatWS.sendAction('send_private_msg', {
     user_id: Number(userId),
     message: [
