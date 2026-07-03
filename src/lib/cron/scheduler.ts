@@ -6,7 +6,7 @@
  */
 
 import type { CronTask, SchedulerConfig } from './types'
-import { findDueTasks, updateTask, updateTaskRunInfo } from './store'
+import { findDueTasks, updateTask, updateTaskRunResult, incrementRunCount } from './store'
 import { calculateNextRun } from './parser'
 import { taskQueue } from './queue'
 
@@ -148,18 +148,20 @@ export class CronScheduler {
    * @param now  - 当前时间戳（毫秒）
    */
   private async processTask(task: CronTask, now: number): Promise<void> {
-    // 提交到并发队列执行
+    // 提交到并发队列执行（异步，不阻塞调度器）
     await taskQueue.enqueue(task)
 
-    // 更新 lastRunAt（当前时间戳，毫秒）和 runCount
+    // 更新 lastRunAt（当前时间戳，毫秒），递增执行计数
+    updateTask(task.id, { lastRunAt: now })
+    incrementRunCount(task.id)
+
+    // 用更新后的数据计算下次执行时间
     const updatedTask: CronTask = {
       ...task,
       lastRunAt: now,
       runCount: task.runCount + 1,
     }
-    updateTask(task.id, { lastRunAt: now })
 
-    // 计算下次执行时间（使用更新后的任务数据）
     try {
       const nextRunSeconds = calculateNextRun(updatedTask)
 
@@ -226,6 +228,10 @@ export class CronScheduler {
     try {
       // 直接执行任务（不经过队列）
       const result = await executeTask(task)
+
+      // 更新 lastRunAt，递增执行计数
+      updateTask(task.id, { lastRunAt: now })
+      incrementRunCount(task.id)
 
       // 计算下次执行时间
       const updatedTask: CronTask = {

@@ -60,7 +60,11 @@ export const CRON_TOOLS: ToolDefinition[] = [
           },
           repeat: {
             type: 'boolean',
-            description: '是否重复执行，false 则为一次性任务',
+            description: '是否重复执行，false 则为一次性任务。不传则默认为 true（重复执行）',
+          },
+          outputFormat: {
+            type: 'string',
+            description: '输出格式："text"（文本）或 "voice"（语音）。不传则默认为 "text"',
           },
           silent: {
             type: 'boolean',
@@ -71,7 +75,7 @@ export const CRON_TOOLS: ToolDefinition[] = [
             description: '可用工具列表（字符串数组），限制任务执行时可调用的工具',
           },
         },
-        required: ['name', 'schedule', 'prompt', 'repeat'],
+        required: ['name', 'schedule', 'prompt'],
       },
     },
   },
@@ -94,7 +98,7 @@ export async function executeCronToolCall(
 ): Promise<string> {
   switch (name) {
     case 'create_scheduled_task': {
-      const { name: taskName, schedule, prompt, repeat, silent, tools } = args
+      const { name: taskName, schedule, prompt, repeat, silent, tools, outputFormat } = args
 
       if (!taskName || typeof taskName !== 'string') {
         return '创建失败：缺少任务名称'
@@ -105,9 +109,12 @@ export async function executeCronToolCall(
       if (!prompt || typeof prompt !== 'string') {
         return '创建失败：缺少任务提示词'
       }
-      if (typeof repeat !== 'boolean') {
-        return '创建失败：缺少 repeat 参数（是否重复执行）'
-      }
+
+      // repeat 参数：接受任何 truthy/falsy 值，默认 true（兼容 AI 漏传或传字符串的情况）
+      const repeatValue = repeat === undefined || repeat === null ? true : Boolean(repeat)
+
+      // outputFormat 校验：只允许 'text' 或 'voice'，默认 'text'
+      const fmt = outputFormat === 'voice' ? 'voice' : 'text'
 
       return createScheduledTask(
         {
@@ -115,8 +122,9 @@ export async function executeCronToolCall(
           name: taskName,
           schedule,
           prompt,
-          repeat,
+          repeat: repeatValue,
           silent: silent ?? false,
+          outputFormat: fmt,
           tools,
         },
         userId,

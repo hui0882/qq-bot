@@ -34,6 +34,8 @@ export {
   deleteTask,
   findDueTasks,
   updateTaskRunInfo,
+  updateTaskRunResult,
+  incrementRunCount,
   getUserTaskCount,
   addTaskLog,
   getTaskLogs,

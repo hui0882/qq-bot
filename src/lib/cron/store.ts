@@ -264,6 +264,18 @@ export function updateTask(id: string, updates: Partial<CronTask>): void {
     fields.push('next_run_at = ?')
     values.push(updates.nextRunAt || null)
   }
+  if (updates.lastRunStatus !== undefined) {
+    fields.push('last_run_status = ?')
+    values.push(updates.lastRunStatus || null)
+  }
+  if (updates.lastRunError !== undefined) {
+    fields.push('last_run_error = ?')
+    values.push(updates.lastRunError || null)
+  }
+  if (updates.runCount !== undefined) {
+    fields.push('run_count = ?')
+    values.push(updates.runCount)
+  }
   if (updates.silent !== undefined) {
     fields.push('silent = ?')
     values.push(updates.silent ? 1 : 0)
@@ -302,9 +314,13 @@ export function findDueTasks(now: number): CronTask[] {
 }
 
 /**
- * 更新任务执行信息
+ * 更新任务执行结果（不修改 runCount，由调用方在适当时机递增）
+ *
+ * @param id     - 任务 ID
+ * @param status - 执行状态 ('success' | 'failed' | 'timeout')
+ * @param error  - 错误信息（可选）
  */
-export function updateTaskRunInfo(id: string, status: string, error?: string): void {
+export function updateTaskRunResult(id: string, status: string, error?: string): void {
   const now = Date.now()
 
   db.prepare(`
@@ -312,10 +328,28 @@ export function updateTaskRunInfo(id: string, status: string, error?: string): v
       last_run_at = ?,
       last_run_status = ?,
       last_run_error = ?,
-      run_count = run_count + 1,
       updated_at = ?
     WHERE id = ?
   `).run(now, status, error || null, now, id)
+}
+
+/**
+ * 递增任务执行计数
+ *
+ * @param id - 任务 ID
+ */
+export function incrementRunCount(id: string): void {
+  db.prepare(`
+    UPDATE cron_tasks SET run_count = run_count + 1 WHERE id = ?
+  `).run(id)
+}
+
+/**
+ * @deprecated 使用 updateTaskRunResult + incrementRunCount 代替
+ */
+export function updateTaskRunInfo(id: string, status: string, error?: string): void {
+  updateTaskRunResult(id, status, error)
+  incrementRunCount(id)
 }
 
 // ============ 任务数量检查 ============

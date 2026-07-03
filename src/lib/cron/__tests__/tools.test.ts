@@ -36,12 +36,14 @@ describe('CRON_TOOLS', () => {
     expect(params.required).toContain('name')
     expect(params.required).toContain('schedule')
     expect(params.required).toContain('prompt')
-    expect(params.required).toContain('repeat')
+    // repeat 不是必填参数（有默认值 true）
+    expect(params.required).not.toContain('repeat')
 
     expect(params.properties.name.type).toBe('string')
     expect(params.properties.schedule.type).toBe('string')
     expect(params.properties.prompt.type).toBe('string')
     expect(params.properties.repeat.type).toBe('boolean')
+    expect(params.properties.outputFormat.type).toBe('string')
   })
 })
 
@@ -75,13 +77,36 @@ describe('executeCronToolCall', () => {
     expect(result).toContain('缺少任务提示词')
   })
 
-  it('应该验证 repeat 参数', async () => {
+  it('repeat 参数缺失时应默认 true', async () => {
+    const { createTask, getUserTaskCount, updateTask } = await import('../store')
+    const { parseSchedule, calculateNextRun } = await import('../parser')
+
+    vi.mocked(getUserTaskCount).mockReturnValue(0)
+    vi.mocked(parseSchedule).mockReturnValue({ type: 'cron', cron: '0 9 * * *' })
+    vi.mocked(calculateNextRun).mockReturnValue(Math.floor(Date.now() / 1000) + 3600)
+    vi.mocked(createTask).mockReturnValue({
+      id: 'test-id',
+      userId: '123456',
+      name: '测试任务',
+      scheduleRaw: '0 9 * * *',
+      prompt: '测试提示词',
+      repeat: true,
+      silent: false,
+      enabled: true,
+      runCount: 0,
+      retryCount: 0,
+      outputFormat: 'text',
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    } as any)
+
+    // 不传 repeat → 默认 true → 创建成功
     const result = await executeCronToolCall('create_scheduled_task', {
       name: '测试',
       schedule: '0 9 * * *',
       prompt: '测试提示词',
     }, '123456')
-    expect(result).toContain('缺少 repeat 参数')
+    expect(result).toContain('定时任务创建成功')
   })
 
   it('应该检查任务数量上限', async () => {
@@ -117,6 +142,7 @@ describe('executeCronToolCall', () => {
       enabled: true,
       runCount: 0,
       retryCount: 0,
+      outputFormat: 'text',
       createdAt: Date.now(),
       updatedAt: Date.now(),
     } as any)
