@@ -6,6 +6,7 @@
 import { initDatabase, closeDatabase } from './index'
 import { needsMigration, runMigration } from './migrate'
 import { getAIContextManager } from './queries/ai'
+import { initCronTables } from '@/lib/cron/store'
 
 /**
  * 初始化数据库
@@ -22,6 +23,9 @@ export function initializeDatabase(): void {
     // 直接初始化表结构
     initDatabase()
   }
+
+  // 初始化定时任务表
+  initCronTables()
 
   // 初始化 AI 上下文管理器
   getAIContextManager().init()

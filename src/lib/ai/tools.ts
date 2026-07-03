@@ -3,10 +3,12 @@
 
 import { getUserAIConfig, upsertUserAIConfig } from '@/lib/db/queries/ai'
 import type { ToolDefinition } from './types'
+import { CRON_TOOLS, executeCronToolCall } from '@/lib/cron/tools'
 
 // ============ 工具定义（OpenAI 格式） ============
 
 export const PROMPT_TOOLS: ToolDefinition[] = [
+  ...CRON_TOOLS,
   {
     type: 'function',
     function: {
@@ -91,6 +93,12 @@ export async function executeToolCall(userId: number, toolName: string, args: Re
         custom_system_prompt: null,
       })
       return { success: true, message: '✅ 个人提示词已清除，将使用全局默认提示词。' }
+    }
+
+    case 'create_scheduled_task': {
+      // 定时任务工具
+      const message = await executeCronToolCall(toolName, args as Record<string, any>, String(userId))
+      return { success: true, message }
     }
 
     default: {

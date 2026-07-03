@@ -15,6 +15,7 @@ const NAV_ITEMS = [
   { href: '/debugger', label: 'API 调试', icon: '🔧' },
   { href: '/logs', label: '日志', icon: '📋' },
   { href: '/school', label: '学业助手', icon: '📚' },
+  { href: '/cron', label: '定时任务', icon: '⏰' },
   { href: '/settings', label: '设置', icon: '⚙️' },
 ]
 
