@@ -118,6 +118,13 @@ const DEFAULT_CONFIG: PlatformConfig = {
         enabled: true,
         handler: 'builtin:clear',
       },
+      {
+        name: 'cron',
+        description: '定时任务管理',
+        usage: '/cron [list|delete|pause|resume|run|logs] [id]',
+        enabled: true,
+        handler: 'builtin:cron',
+      },
     ],
   },
   ai: {
@@ -151,6 +158,21 @@ class ConfigManager {
     initializeDatabase()
     this.config = this.loadConfig()
     this.startWatcher()
+
+    // 延迟启动定时任务调度器（避免循环依赖）
+    this.initScheduler()
+  }
+
+  private async initScheduler(): Promise<void> {
+    try {
+      // 等待一小段时间确保其他模块初始化完成
+      await new Promise(resolve => setTimeout(resolve, 500))
+      const { scheduler } = await import('@/lib/cron/scheduler')
+      scheduler.start()
+      console.log('[Config] 定时任务调度器已启动')
+    } catch (err) {
+      console.error('[Config] 启动定时任务调度器失败:', err)
+    }
   }
 
   private loadTemplate(): PlatformConfig {

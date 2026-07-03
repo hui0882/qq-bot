@@ -78,6 +78,13 @@
         "usage": "/clear",
         "enabled": true,
         "handler": "builtin:clear"
+      },
+      {
+        "name": "cron",
+        "description": "定时任务管理",
+        "usage": "/cron [list|delete|pause|resume|run|logs] [id]",
+        "enabled": true,
+        "handler": "builtin:cron"
       }
     ]
   }
