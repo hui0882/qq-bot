@@ -3,7 +3,103 @@
 
 import { getUserAIConfig, upsertUserAIConfig } from '@/lib/db/queries/ai'
 import type { ToolDefinition } from './types'
-import { CRON_TOOLS, executeCronToolCall } from '@/lib/cron/tools'
+
+// 定时任务工具定义（避免循环依赖）
+const CRON_TOOLS: ToolDefinition[] = [
+  {
+    type: 'function',
+    function: {
+      name: 'create_scheduled_task',
+      description: '创建定时任务。当用户要求定时执行某项操作时使用。',
+      parameters: {
+        type: 'object',
+        properties: {
+          name: { type: 'string', description: '任务名称' },
+          schedule: { type: 'string', description: '调度规则，支持：at（一次性，如 "at 15:30"）、every（间隔，如 "every 5m"）、cron（表达式，如 "0 9 * * *"）' },
+          prompt: { type: 'string', description: '任务提示词，执行时发送给 AI 的内容' },
+          repeat: { type: 'boolean', description: '是否重复执行，false 则为一次性任务。不传则默认为 true（重复执行）' },
+          silent: { type: 'boolean', description: '是否静默模式，true 时只发送状态提示不发送 AI 回复' },
+        },
+        required: ['name', 'schedule', 'prompt'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'list_scheduled_tasks',
+      description: '列出当前用户的所有定时任务。',
+      parameters: { type: 'object', properties: {}, required: [] },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_scheduled_task_detail',
+      description: '获取指定定时任务的详细信息和执行日志。',
+      parameters: {
+        type: 'object',
+        properties: { task_id: { type: 'string', description: '任务 ID（完整 ID 或前 6 位）' } },
+        required: ['task_id'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'update_scheduled_task',
+      description: '更新指定定时任务的属性。',
+      parameters: {
+        type: 'object',
+        properties: {
+          task_id: { type: 'string', description: '任务 ID' },
+          name: { type: 'string', description: '新的任务名称' },
+          schedule: { type: 'string', description: '新的调度规则' },
+          prompt: { type: 'string', description: '新的任务提示词' },
+          repeat: { type: 'boolean', description: '是否重复执行' },
+          silent: { type: 'boolean', description: '是否静默模式' },
+        },
+        required: ['task_id'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'delete_scheduled_task',
+      description: '删除指定定时任务。',
+      parameters: {
+        type: 'object',
+        properties: { task_id: { type: 'string', description: '任务 ID' } },
+        required: ['task_id'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'pause_scheduled_task',
+      description: '暂停指定定时任务。',
+      parameters: {
+        type: 'object',
+        properties: { task_id: { type: 'string', description: '任务 ID' } },
+        required: ['task_id'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'resume_scheduled_task',
+      description: '恢复已暂停的定时任务。',
+      parameters: {
+        type: 'object',
+        properties: { task_id: { type: 'string', description: '任务 ID' } },
+        required: ['task_id'],
+      },
+    },
+  },
+]
 
 // ============ 工具定义（OpenAI 格式） ============
 
@@ -95,10 +191,21 @@ export async function executeToolCall(userId: number, toolName: string, args: Re
       return { success: true, message: '✅ 个人提示词已清除，将使用全局默认提示词。' }
     }
 
-    case 'create_scheduled_task': {
-      // 定时任务工具
-      const message = await executeCronToolCall(toolName, args as Record<string, any>, String(userId))
-      return { success: true, message }
+    // 定时任务工具（动态导入避免循环依赖）
+    case 'create_scheduled_task':
+    case 'list_scheduled_tasks':
+    case 'get_scheduled_task_detail':
+    case 'update_scheduled_task':
+    case 'delete_scheduled_task':
+    case 'pause_scheduled_task':
+    case 'resume_scheduled_task': {
+      try {
+        const { executeCronToolCall } = await import('@/lib/cron/tools')
+        const message = await executeCronToolCall(toolName, args as Record<string, any>, String(userId))
+        return { success: true, message }
+      } catch (err) {
+        return { success: false, message: `定时任务工具执行失败: ${(err as Error).message}` }
+      }
     }
 
     default: {

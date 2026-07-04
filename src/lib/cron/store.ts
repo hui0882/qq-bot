@@ -206,6 +206,17 @@ export function getUserTasks(userId: string): CronTask[] {
 }
 
 /**
+ * 获取所有任务（不限用户）
+ */
+export function getAllTasks(): CronTask[] {
+  const rows = db.prepare(
+    'SELECT * FROM cron_tasks ORDER BY created_at DESC'
+  ).all() as CronTaskRow[]
+
+  return rows.map(rowToTask)
+}
+
+/**
  * 更新任务
  */
 export function updateTask(id: string, updates: Partial<CronTask>): void {
