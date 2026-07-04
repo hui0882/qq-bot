@@ -2,8 +2,9 @@
 // 定时任务管理 API
 
 import { NextResponse } from 'next/server'
-import { getUserTasks, getTask, deleteTask, updateTask, getTaskLogs } from '@/lib/cron/store'
+import { getUserTasks, getAllTasks, getTask, deleteTask, updateTask, getTaskLogs } from '@/lib/cron/store'
 import { scheduler } from '@/lib/cron/scheduler'
+import { parseSchedule, calculateNextRun } from '@/lib/cron/parser'
 
 export async function GET(request: Request) {
   try {
@@ -38,7 +39,12 @@ export async function GET(request: Request) {
       })
     }
 
-    return NextResponse.json({ success: false, message: '缺少参数' })
+    // 没有 userId 时返回所有任务（用于获取默认用户等场景）
+    const allTasks = getAllTasks()
+    return NextResponse.json({
+      success: true,
+      data: allTasks,
+    })
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     return NextResponse.json({ success: false, message })
@@ -93,14 +99,66 @@ export async function POST(request: Request) {
       }
 
       case 'update': {
-        if (updates) {
-          updateTask(taskId, updates)
-          return NextResponse.json({
-            success: true,
-            message: `已更新任务「${task.name}」`,
-          })
+        if (!updates) {
+          return NextResponse.json({ success: false, message: '缺少更新数据' })
         }
-        return NextResponse.json({ success: false, message: '缺少更新数据' })
+
+        // 处理调度规则更新
+        const processedUpdates: Record<string, any> = { ...updates }
+
+        if (updates.scheduleRaw && typeof updates.scheduleRaw === 'string') {
+          try {
+            const parsed = parseSchedule(updates.scheduleRaw.trim())
+            processedUpdates.scheduleType = parsed.type
+            processedUpdates.scheduleRaw = updates.scheduleRaw.trim()
+
+            // 清除旧的调度字段
+            processedUpdates.scheduleCron = undefined
+            processedUpdates.scheduleInterval = undefined
+            processedUpdates.scheduleAt = undefined
+
+            // 设置新的调度字段
+            if (parsed.type === 'cron' && parsed.cron) {
+              processedUpdates.scheduleCron = parsed.cron
+            } else if (parsed.type === 'every' && parsed.interval) {
+              processedUpdates.scheduleInterval = parsed.interval
+            } else if (parsed.type === 'at' && parsed.at) {
+              processedUpdates.scheduleAt = parsed.at
+            }
+
+            // 重新计算下次执行时间
+            const updatedTask = { ...task, ...processedUpdates }
+            const nextRunSeconds = calculateNextRun(updatedTask as any)
+            processedUpdates.nextRunAt = nextRunSeconds * 1000
+
+            // 如果任务之前被禁用，重新启用
+            if (!task.enabled) {
+              processedUpdates.enabled = true
+            }
+          } catch (parseError) {
+            const parseMessage = parseError instanceof Error ? parseError.message : String(parseError)
+            return NextResponse.json({
+              success: false,
+              message: `调度规则解析失败: ${parseMessage}`,
+            })
+          }
+        }
+
+        // 移除 undefined 值
+        const cleanUpdates: Record<string, any> = {}
+        for (const [key, value] of Object.entries(processedUpdates)) {
+          if (value !== undefined) {
+            cleanUpdates[key] = value
+          }
+        }
+
+        updateTask(taskId, cleanUpdates)
+        scheduler.refresh()
+
+        return NextResponse.json({
+          success: true,
+          message: `已更新任务「${task.name}」`,
+        })
       }
 
       default:

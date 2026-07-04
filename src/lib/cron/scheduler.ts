@@ -9,10 +9,11 @@ import type { CronTask, SchedulerConfig } from './types'
 import { findDueTasks, updateTask, updateTaskRunResult, incrementRunCount } from './store'
 import { calculateNextRun } from './parser'
 import { taskQueue } from './queue'
+import { logger } from '../logger'
 
 /** 调度器默认配置 */
 const DEFAULT_CONFIG: Required<SchedulerConfig> = {
-  tickInterval: 60_000, // 60 秒
+  tickInterval: 10_000, // 10 秒（提高响应性，避免短间隔任务延迟过大）
   maxConcurrent: 3,
   executionTimeout: 60,
   maxRetries: 2,
@@ -51,24 +52,25 @@ export class CronScheduler {
    */
   start(): void {
     if (this.running) {
-      console.log('[CronScheduler] 调度器已在运行中，忽略重复启动')
+      logger.logSystem('CronScheduler: already_running')
       return
     }
 
     this.running = true
-    console.log(
-      `[CronScheduler] 启动调度器，Tick 间隔: ${this.config.tickInterval / 1000}s`
-    )
+    logger.logSystem('CronScheduler: started', {
+      tickIntervalSec: this.config.tickInterval / 1000,
+      maxConcurrent: this.config.maxConcurrent,
+    })
 
     // 立即执行一次 tick
     this.tick().catch((err) => {
-      console.error('[CronScheduler] 首次 tick 异常:', err)
+      logger.logSystem('CronScheduler: first_tick_error', { error: String(err) })
     })
 
     // 设置周期性 tick
     this.timer = setInterval(() => {
       this.tick().catch((err) => {
-        console.error('[CronScheduler] tick 异常:', err)
+        logger.logSystem('CronScheduler: tick_error', { error: String(err) })
       })
     }, this.config.tickInterval)
   }
@@ -80,7 +82,7 @@ export class CronScheduler {
    */
   stop(): void {
     if (!this.running) {
-      console.log('[CronScheduler] 调度器未在运行，忽略停止操作')
+      logger.logSystem('CronScheduler: not_running')
       return
     }
 
@@ -91,7 +93,7 @@ export class CronScheduler {
       this.timer = null
     }
 
-    console.log('[CronScheduler] 调度器已停止')
+    logger.logSystem('CronScheduler: stopped')
   }
 
   /**
@@ -105,7 +107,7 @@ export class CronScheduler {
    */
   private async tick(): Promise<void> {
     if (this.ticking) {
-      console.log('[CronScheduler] 上一次 tick 尚未完成，跳过')
+      logger.logSystem('Tick 尚未完成，跳过')
       return
     }
 
@@ -119,20 +121,26 @@ export class CronScheduler {
         return
       }
 
-      console.log(`[CronScheduler] 发现 ${dueTasks.length} 个到期任务`)
+      logger.logSystem(`发现 ${dueTasks.length} 个到期任务`, {
+        taskIds: dueTasks.map((t) => t.id),
+        taskNames: dueTasks.map((t) => t.name),
+      })
 
       for (const task of dueTasks) {
         try {
           await this.processTask(task, now)
         } catch (err) {
-          console.error(
-            `[CronScheduler] 处理任务 ${task.id}（${task.name}）失败:`,
-            err
-          )
+          logger.logSystem('处理任务失败', {
+            taskId: task.id,
+            taskName: task.name,
+            error: err instanceof Error ? err.message : String(err),
+          })
         }
       }
     } catch (err) {
-      console.error('[CronScheduler] tick 整体异常:', err)
+      logger.logSystem('tick 整体异常', {
+        error: err instanceof Error ? err.message : String(err),
+      })
     } finally {
       this.ticking = false
     }
@@ -142,7 +150,7 @@ export class CronScheduler {
    * 处理单个到期任务
    *
    * 提交到队列执行，然后计算并更新下次执行时间。
-   * 对于不重复的一次性任务（at 类型且 repeat=false），执行后自动禁用。
+   * 一次性任务（at 类型，或 every/cron 且 repeat=false）执行后自动禁用。
    *
    * @param task - 到期的定时任务
    * @param now  - 当前时间戳（毫秒）
@@ -168,26 +176,48 @@ export class CronScheduler {
       // calculateNextRun 返回秒级时间戳，转为毫秒后更新
       const nextRunAtMs = nextRunSeconds * 1000
 
-      // 如果是不重复的一次性任务（at 类型且 repeat=false），执行后禁用
-      if (task.scheduleType === 'at' && !task.repeat) {
+      // 一次性任务判断：
+      // - at 类型本身就是一次性任务（指定时间执行一次），无论 repeat 标志如何
+      // - every/cron 类型且 repeat=false 时，也是一次性任务，执行后禁用
+      const isOneTime = task.scheduleType === 'at' || !task.repeat
+
+      if (isOneTime) {
         updateTask(task.id, {
           nextRunAt: undefined,
           enabled: false,
         })
-        console.log(
-          `[CronScheduler] 一次性任务 ${task.id}（${task.name}）已执行，自动禁用`
-        )
+        logger.logSystem('一次性任务已执行，自动禁用', {
+          taskId: task.id,
+          taskName: task.name,
+          scheduleType: task.scheduleType,
+          repeat: task.repeat,
+        })
       } else {
         updateTask(task.id, { nextRunAt: nextRunAtMs })
-        console.log(
-          `[CronScheduler] 任务 ${task.id}（${task.name}）下次执行时间: ${new Date(nextRunAtMs).toISOString()}`
-        )
+        logger.logSystem('任务已调度下次执行', {
+          taskId: task.id,
+          taskName: task.name,
+          nextRunAt: new Date(nextRunAtMs).toISOString(),
+        })
       }
     } catch (err) {
-      console.error(
-        `[CronScheduler] 计算任务 ${task.id}（${task.name}）下次执行时间失败:`,
-        err
-      )
+      logger.logSystem('计算下次执行时间失败', {
+        taskId: task.id,
+        taskName: task.name,
+        error: err instanceof Error ? err.message : String(err),
+      })
+      // 计算失败时，对于一次性任务仍要禁用，防止无限重试
+      const isOneTime = task.scheduleType === 'at' || !task.repeat
+      if (isOneTime) {
+        updateTask(task.id, {
+          nextRunAt: undefined,
+          enabled: false,
+        })
+        logger.logSystem('一次性任务计算失败，安全禁用', {
+          taskId: task.id,
+          taskName: task.name,
+        })
+      }
     }
   }
 
@@ -198,9 +228,9 @@ export class CronScheduler {
    * 适用于任务被外部修改后需要立即生效的场景。
    */
   refresh(): void {
-    console.log('[CronScheduler] 刷新任务，强制执行 tick')
+    logger.logSystem('刷新任务，强制执行 tick')
     this.tick().catch((err) => {
-      console.error('[CronScheduler] 刷新 tick 异常:', err)
+      logger.logSystem('刷新 tick 异常', { error: String(err) })
     })
   }
 
@@ -221,7 +251,7 @@ export class CronScheduler {
       throw new Error(`任务不存在: ${taskId}`)
     }
 
-    console.log(`[CronScheduler] 手动触发任务 ${task.id}（${task.name}）`)
+    logger.logSystem('手动触发任务', { taskId: task.id, taskName: task.name })
 
     const now = Date.now()
 
@@ -242,11 +272,17 @@ export class CronScheduler {
       const nextRunSeconds = calculateNextRun(updatedTask)
       const nextRunAtMs = nextRunSeconds * 1000
 
-      // 对于不重复的一次性任务，手动触发后也自动禁用
-      if (task.scheduleType === 'at' && !task.repeat) {
+      // 一次性任务判断：at 类型本身是一次性；every/cron 且 repeat=false 也是一次性
+      const isOneTime = task.scheduleType === 'at' || !task.repeat
+
+      if (isOneTime) {
         updateTask(task.id, {
           nextRunAt: undefined,
           enabled: false,
+        })
+        logger.logSystem('手动触发的一次性任务已执行，自动禁用', {
+          taskId: task.id,
+          taskName: task.name,
         })
       } else {
         updateTask(task.id, { nextRunAt: nextRunAtMs })
