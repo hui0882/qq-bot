@@ -154,7 +154,16 @@ async function sendVoiceReplySplit(userId: number, text: string): Promise<void> 
       const delay = calculateDelay(segments[i - 1])
       await sleep(delay)
     }
-    await sendVoiceReply(userId, segments[i])
+    try {
+      await sendVoiceReply(userId, segments[i])
+    } catch (err) {
+      logger.logSystem('VoiceReplySplit: segment failed', {
+        userId,
+        segment: i,
+        error: (err as Error).message,
+      })
+      break
+    }
   }
 }
 
