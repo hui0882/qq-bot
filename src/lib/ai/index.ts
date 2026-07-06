@@ -38,9 +38,20 @@ export async function processAIMessage(
   }
 
   // 3. 构建系统提示词（用户自定义 > 全局配置 > 默认值）
-  const systemPrompt = config.customSystemPrompt
+  // 分段规则始终追加，确保 AI 遵守分隔符指令
+  const splitRules = '\n\n回复规则：\n' +
+    '1. 第一条回复要体现关心和快速应答，表达你正在认真帮助对方\n' +
+    '2. 之后用 ||| 分隔符将主要内容拆分为多条消息\n' +
+    '3. 每条消息应该是一个完整的思维单元，像人发消息一样自然'
+
+  const basePrompt = config.customSystemPrompt
     ? { role: 'system' as const, content: config.customSystemPrompt }
     : buildSystemPrompt(replyType, globalConfig.systemPrompt)
+
+  const systemPrompt = {
+    role: 'system' as const,
+    content: basePrompt.content + splitRules
+  }
 
   // 4. 读取上下文
   const contextMessages = aiContext.getContext(userId, config.maxContextRounds)
