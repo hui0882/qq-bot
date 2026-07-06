@@ -117,11 +117,22 @@ async function sendTextReplySplit(userId: number, text: string): Promise<void> {
   }
 
   for (let i = 0; i < segments.length; i++) {
-    if (i > 0) {
-      const delay = calculateDelay(segments[i])
-      await sleep(delay)
+    try {
+      if (i > 0) {
+        const delay = calculateDelay(segments[i - 1])
+        await sleep(delay)
+      }
+      await sendTextReply(userId, segments[i])
+    } catch (err) {
+      logger.logSystem('TextReplySplit: segment send failed', {
+        userId,
+        segment: i,
+        total: segments.length,
+        error: (err as Error).message,
+      })
+      // Abort remaining segments on failure
+      return
     }
-    await sendTextReply(userId, segments[i])
   }
 }
 
@@ -140,7 +151,7 @@ async function sendVoiceReplySplit(userId: number, text: string): Promise<void> 
 
   for (let i = 0; i < segments.length; i++) {
     if (i > 0) {
-      const delay = calculateDelay(segments[i])
+      const delay = calculateDelay(segments[i - 1])
       await sleep(delay)
     }
     await sendVoiceReply(userId, segments[i])
