@@ -8,14 +8,31 @@ const SEGMENT_DELIMITER = '|||'
 
 /**
  * 按分隔符拆分消息
+ * 优先按 ||| 分隔符拆分；如果没有分隔符，则按自然段落拆分
  * @param text AI 回复的完整文本
  * @returns 拆分后的消息段数组（过滤空段）
  */
 export function splitMessage(text: string): string[] {
+  // 优先按 ||| 分隔符拆分
+  if (text.includes(SEGMENT_DELIMITER)) {
+    const segments = text
+      .split(SEGMENT_DELIMITER)
+      .map(s => s.trim())
+      .filter(s => s.length > 0)
+    if (segments.length > 1) return segments
+  }
+
+  // Fallback: 按自然段落拆分（双换行、句号+换行等）
   const segments = text
-    .split(SEGMENT_DELIMITER)
+    .split(/\n{2,}|(?<=[。！？])\s*/)
     .map(s => s.trim())
     .filter(s => s.length > 0)
+
+  // 如果拆分后只有一段，或者每段太短（<15字），不拆分
+  if (segments.length <= 1 || segments.every(s => s.length < 15)) {
+    return [text.trim()]
+  }
+
   return segments
 }
 
