@@ -31,15 +31,6 @@ export async function POST(request: NextRequest) {
       safePartial.ws = wsClean
     }
 
-    if (body.api) {
-      const api = body.api as Record<string, unknown>
-      const apiClean: Record<string, unknown> = { ...api }
-      if (api.token === '***' || api.token === '••••••••' || api.token === undefined) {
-        delete apiClean.token
-      }
-      safePartial.api = apiClean
-    }
-
     if (body.tts) {
       const tts = body.tts as Record<string, unknown>
       const ttsClean: Record<string, unknown> = { ...tts }

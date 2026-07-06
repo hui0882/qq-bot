@@ -237,10 +237,6 @@ export interface PlatformConfig {
     reconnectInterval: number
     maxReconnectInterval: number
   }
-  api: {
-    url: string
-    token: string
-  }
   tts: {
     enabled: boolean
     apiUrl: string

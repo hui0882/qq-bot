@@ -69,6 +69,10 @@ export interface LLMResponse {
     personalPrompt: string | null
     context: Array<{ role: string; content: string }>
   }
+  /** 分段回复标记 */
+  _isSplitReply?: boolean
+  /** 分段回复的第一部分 */
+  _firstResponse?: string
 }
 
 export interface ConversationEntry {
