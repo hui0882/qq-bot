@@ -170,39 +170,33 @@ async function sendVoiceReplySplit(userId: number, text: string): Promise<void> 
 }
 
 /**
- * 快速首条响应：调用 AI 生成简短的第一反应
- * 使用精简的系统提示词，要求快速给出关心的回应
+ * 获取第二阶段回复：基于第一阶段的内容继续回复
+ * 将第一阶段的回复作为上下文，让 AI 继续回复剩余内容
  */
-async function getQuickFirstResponse(
+async function getSecondStageResponse(
   userId: number,
   userMessage: string,
+  firstResponse: string,
+  replyType: 'text' | 'voice',
   aiConfig: AIConfig,
 ): Promise<string | null> {
   try {
-    const quickPrompt = '你正在和用户聊天。用户刚发来一条消息，你需要快速给出一个简短的第一反应（15-30字），表达你在认真倾听和关心对方。' +
-      '不要详细回答问题，只需要表达关注和理解。例如："我在听呢，说说看"、"嗯嗯，我理解你的感受"、"别担心，我来帮你看看"。' +
-      '直接回复反应内容，不要加任何前缀或解释。'
+    // 构建包含第一阶段回复的上下文
+    const secondStagePrompt = '你之前已经回复了用户的第一部分："${firstResponse}"。现在请继续回复剩余内容，不要重复第一部分已经说过的内容。直接给出剩余的详细内容。'
 
-    const response = await callLLM({
-      messages: [
-        { role: 'system', content: quickPrompt },
-        { role: 'user', content: userMessage },
-      ],
-      config: {
-        baseUrl: aiConfig.baseUrl,
-        apiKey: aiConfig.apiKey,
-        model: aiConfig.model,
-        maxTokens: 100,
-        temperature: 0.7,
-      },
-    })
+    const response = await processAIMessage(
+      userId,
+      userMessage + '\n\n[系统提示：你之前已经回复了第一部分："' + firstResponse + '"，现在请继续回复剩余内容，不要重复第一部分已经说过的内容]',
+      replyType,
+      aiConfig,
+    )
 
     if (response.content) {
       return response.content.trim()
     }
     return null
   } catch (err) {
-    logger.logSystem('QuickFirstResponse: failed', { error: (err as Error).message })
+    logger.logSystem('SecondStageResponse: failed', { error: (err as Error).message })
     return null
   }
 }
@@ -247,7 +241,7 @@ export async function handleVoiceReply(event: Record<string, unknown>): Promise<
     return
   }
 
-  // AI 管道处理 — 双阶段调用
+  // AI 管道处理
   const startTime = Date.now()
 
   // 确定回复类型：用户设置 > 全局默认
@@ -256,20 +250,6 @@ export async function handleVoiceReply(event: Record<string, unknown>): Promise<
   if (userMode === 'always') replyType = 'voice'
   else if (userMode === 'off') replyType = 'text'
 
-  // ====== 阶段一：快速首条响应 ======
-  const quickResponse = await getQuickFirstResponse(userId, textContent, config.ai)
-  if (quickResponse) {
-    // 立即发送首条快速响应
-    if (replyType === 'voice') {
-      await sendVoiceReply(userId, quickResponse)
-    } else {
-      await sendTextReply(userId, quickResponse)
-    }
-    // 短暂延迟后继续获取完整回复
-    await sleep(800)
-  }
-
-  // ====== 阶段二：获取完整回复 ======
   // 记录 AI 请求日志
   logger.logAI({
     userId,
@@ -279,7 +259,7 @@ export async function handleVoiceReply(event: Record<string, unknown>): Promise<
     },
   })
 
-  // 调用 AI 获取完整回复
+  // 调用 AI
   const response = await processAIMessage(userId, textContent, replyType, config.ai)
   const duration = Date.now() - startTime
 
@@ -327,10 +307,42 @@ export async function handleVoiceReply(event: Record<string, unknown>): Promise<
     },
   })
 
-  // 发送完整回复（分段）
-  if (replyType === 'voice') {
-    await sendVoiceReplySplit(userId, response.content)
+  // 发送回复 — 检查是否为分段回复
+  if (response._isSplitReply && response._firstResponse) {
+    // ====== 分段回复模式 ======
+    // 阶段一：发送快速首条响应
+    if (replyType === 'voice') {
+      await sendVoiceReply(userId, response._firstResponse)
+    } else {
+      await sendTextReply(userId, response._firstResponse)
+    }
+
+    // 短暂延迟后获取第二阶段回复
+    await sleep(800)
+
+    // 阶段二：获取完整回复（包含第一阶段上下文）
+    const secondResponse = await getSecondStageResponse(
+      userId,
+      textContent,
+      response._firstResponse,
+      replyType,
+      config.ai,
+    )
+
+    if (secondResponse) {
+      // 发送第二阶段回复（分段）
+      if (replyType === 'voice') {
+        await sendVoiceReplySplit(userId, secondResponse)
+      } else {
+        await sendTextReplySplit(userId, secondResponse)
+      }
+    }
   } else {
-    await sendTextReplySplit(userId, response.content)
+    // ====== 普通回复模式 ======
+    if (replyType === 'voice') {
+      await sendVoiceReplySplit(userId, response.content)
+    } else {
+      await sendTextReplySplit(userId, response.content)
+    }
   }
 }

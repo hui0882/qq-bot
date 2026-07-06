@@ -108,6 +108,23 @@ export const PROMPT_TOOLS: ToolDefinition[] = [
   {
     type: 'function',
     function: {
+      name: 'reply_in_parts',
+      description: '分段回复工具。当用户的问题需要较长回复时（如解释概念、提供建议、回答复杂问题），使用此工具先给出简短的第一反应，然后再详细回复。对于简单的问候、简短回答等不需要分段的情况，直接回复即可，不要调用此工具。',
+      parameters: {
+        type: 'object',
+        properties: {
+          first_response: {
+            type: 'string',
+            description: '简短的第一反应（10-30字），表达关心和理解，如"我来帮你分析一下"、"这个问题很好"、"别担心，我来帮你看看"',
+          },
+        },
+        required: ['first_response'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'set_prompt',
       description: '设置或修改用户的个人提示词。当用户表达任何关于回复风格、角色设定、行为偏好的要求时使用此工具。例如："以后回答要简洁"、"你是一个猫娘"、"记住用幽默风格"、"以后你的回答风格能更加可爱"等。',
       parameters: {
