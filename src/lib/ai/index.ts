@@ -38,20 +38,11 @@ export async function processAIMessage(
   }
 
   // 3. 构建系统提示词（用户自定义 > 全局配置 > 默认值）
-  // 分段规则始终追加，确保 AI 遵守分隔符指令
-  const splitRules = '\n\n回复规则：\n' +
-    '1. 第一条回复要体现关心和快速应答，表达你正在认真帮助对方\n' +
-    '2. 之后用 ||| 分隔符将主要内容拆分为多条消息\n' +
-    '3. 每条消息应该是一个完整的思维单元，像人发消息一样自然'
-
   const basePrompt = config.customSystemPrompt
     ? { role: 'system' as const, content: config.customSystemPrompt }
     : buildSystemPrompt(replyType, globalConfig.systemPrompt)
 
-  const systemPrompt = {
-    role: 'system' as const,
-    content: basePrompt.content + splitRules
-  }
+  const systemPrompt = basePrompt
 
   // 4. 读取上下文
   const contextMessages = aiContext.getContext(userId, config.maxContextRounds)
@@ -93,65 +84,80 @@ export async function processAIMessage(
       args = JSON.parse(toolCall.function.arguments)
     } catch { /* 忽略解析错误 */ }
 
-    // 记录工具调用开始日志
-    const toolStartTime = Date.now()
-    logger.logSystem('AI: tool_call_start', {
-      userId,
-      tool: toolCall.function.name,
-      args,
-      toolCallId: toolCall.id,
-    })
-
-    const toolResult = await executeToolCall(userId, toolCall.function.name, args)
-    const toolDuration = Date.now() - toolStartTime
-
-    // 记录工具调用完成日志
-    logger.logSystem('AI: tool_call_end', {
-      userId,
-      tool: toolCall.function.name,
-      args,
-      toolCallId: toolCall.id,
-      success: toolResult.success,
-      resultMessage: toolResult.message,
-      duration: toolDuration,
-    })
-
-    response.toolResult = {
-      tool: toolCall.function.name,
-      ...toolResult,
-    }
-
-    // 将工具调用结果发送回 LLM 获取最终回复
-    const toolMessages: ChatMessage[] = [
-      ...messages,
-      {
-        role: 'assistant',
-        content: response.content || '',
-        tool_calls: response.toolCalls,
-      },
-      {
-        role: 'tool',
-        content: toolResult.message,
-        tool_call_id: toolCall.id,
-      },
-    ]
-
-    const finalResponse = await callLLM({
-      messages: toolMessages,
-      config: llmConfig,
-    })
-
-    if (!finalResponse.error && finalResponse.content) {
-      response.content = finalResponse.content
-      if (finalResponse.usage) {
-        response.usage = {
-          prompt: (response.usage?.prompt || 0) + finalResponse.usage.prompt,
-          completion: (response.usage?.completion || 0) + finalResponse.usage.completion,
+    // 特殊处理 reply_in_parts 工具：不执行工具，直接返回 first_response
+    if (toolCall.function.name === 'reply_in_parts') {
+      const firstResponse = args.first_response as string
+      if (firstResponse) {
+        response.toolResult = {
+          tool: 'reply_in_parts',
+          success: true,
+          message: firstResponse,
         }
+        // 标记这是一个分段回复，first_response 在 toolResult.message 中
+        response._isSplitReply = true
+        response._firstResponse = firstResponse
       }
     } else {
-      // 如果最终回复失败，直接用工具结果
-      response.content = toolResult.message
+      // 记录工具调用开始日志
+      const toolStartTime = Date.now()
+      logger.logSystem('AI: tool_call_start', {
+        userId,
+        tool: toolCall.function.name,
+        args,
+        toolCallId: toolCall.id,
+      })
+
+      const toolResult = await executeToolCall(userId, toolCall.function.name, args)
+      const toolDuration = Date.now() - toolStartTime
+
+      // 记录工具调用完成日志
+      logger.logSystem('AI: tool_call_end', {
+        userId,
+        tool: toolCall.function.name,
+        args,
+        toolCallId: toolCall.id,
+        success: toolResult.success,
+        resultMessage: toolResult.message,
+        duration: toolDuration,
+      })
+
+      response.toolResult = {
+        tool: toolCall.function.name,
+        ...toolResult,
+      }
+
+      // 将工具调用结果发送回 LLM 获取最终回复
+      const toolMessages: ChatMessage[] = [
+        ...messages,
+        {
+          role: 'assistant',
+          content: response.content || '',
+          tool_calls: response.toolCalls,
+        },
+        {
+          role: 'tool',
+          content: toolResult.message,
+          tool_call_id: toolCall.id,
+        },
+      ]
+
+      const finalResponse = await callLLM({
+        messages: toolMessages,
+        config: llmConfig,
+      })
+
+      if (!finalResponse.error && finalResponse.content) {
+        response.content = finalResponse.content
+        if (finalResponse.usage) {
+          response.usage = {
+            prompt: (response.usage?.prompt || 0) + finalResponse.usage.prompt,
+            completion: (response.usage?.completion || 0) + finalResponse.usage.completion,
+          }
+        }
+      } else {
+        // 如果最终回复失败，直接用工具结果
+        response.content = toolResult.message
+      }
     }
   }
 
