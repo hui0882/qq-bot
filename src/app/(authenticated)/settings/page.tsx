@@ -5,7 +5,6 @@ import { useEffect, useState } from 'react'
 
 interface Config {
   ws: { url: string; token: string; reconnect: boolean; reconnectInterval: number; maxReconnectInterval: number }
-  api: { url: string; token: string }
   tts: { enabled: boolean; apiUrl: string; apiKey: string; model: string; voice: string; style: string; format: string }
   voiceReply: { mode: 'off' | 'always' | 'auto'; allowUserOverride: boolean }
   commands?: {
@@ -242,19 +241,6 @@ export default function SettingsPage() {
             <label className="mb-1 block text-sm font-medium">最大重连间隔 (ms)</label>
             <input type="number" value={config.ws.maxReconnectInterval} onChange={(e) => setConfig({ ...config, ws: { ...config.ws, maxReconnectInterval: parseInt(e.target.value) || 30000 } })} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
           </div>
-        </div>
-      </div>
-
-      {/* HTTP API */}
-      <div className="rounded-lg border p-6 space-y-4">
-        <h2 className="text-lg font-semibold">HTTP API</h2>
-        <div>
-          <label className="mb-1 block text-sm font-medium">API 地址</label>
-          <input type="text" value={config.api?.url || ''} onChange={(e) => setConfig({ ...config, api: { ...config.api, url: e.target.value } })} placeholder="http://115.190.250.31:3000" className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 font-mono text-sm" />
-        </div>
-        <div>
-          <label className="mb-1 block text-sm font-medium">API Token</label>
-          <MaskedInput value={config.api?.token || ''} onChange={(v) => setConfig({ ...config, api: { ...config.api, token: v } })} placeholder="与 WS Token 相同" />
         </div>
       </div>
 

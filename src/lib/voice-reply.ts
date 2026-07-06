@@ -8,7 +8,10 @@ import { getUserResponseType } from './user-config'
 import { dispatchCommand } from './commands'
 import { logger } from './logger'
 import { processAIMessage } from './ai'
+import { callLLM } from './ai/llm-client'
 import { readFileSync, unlinkSync } from 'fs'
+import { splitMessage, calculateDelay, sleep } from './message-splitter'
+import type { AIConfig } from '@/types/napcat'
 
 const lastReplyTime = new Map<number, number>()
 const REPLY_COOLDOWN = 3000
@@ -99,6 +102,102 @@ async function sendVoiceReply(userId: number, text: string): Promise<void> {
     logger.logSystem('VoiceReply: error', { error: (err as Error).message })
   } finally {
     try { unlinkSync(ttsResult.audioPath) } catch { /* ignore */ }
+  }
+}
+
+/**
+ * 分段发送文字消息
+ * 首段立即发送，后续段按动态延迟发送
+ */
+async function sendTextReplySplit(userId: number, text: string): Promise<void> {
+  const segments = splitMessage(text)
+
+  // 如果没有分隔符，fallback 为整条发送
+  if (segments.length <= 1) {
+    await sendTextReply(userId, text)
+    return
+  }
+
+  for (let i = 0; i < segments.length; i++) {
+    try {
+      if (i > 0) {
+        const delay = calculateDelay(segments[i - 1])
+        await sleep(delay)
+      }
+      await sendTextReply(userId, segments[i])
+    } catch (err) {
+      logger.logSystem('TextReplySplit: segment send failed', {
+        userId,
+        segment: i,
+        total: segments.length,
+        error: (err as Error).message,
+      })
+      // Abort remaining segments on failure
+      return
+    }
+  }
+}
+
+/**
+ * 分段发送语音消息
+ * 首段立即发送，后续段按动态延迟发送
+ */
+async function sendVoiceReplySplit(userId: number, text: string): Promise<void> {
+  const segments = splitMessage(text)
+
+  // 如果没有分隔符，fallback 为整条发送
+  if (segments.length <= 1) {
+    await sendVoiceReply(userId, text)
+    return
+  }
+
+  for (let i = 0; i < segments.length; i++) {
+    if (i > 0) {
+      const delay = calculateDelay(segments[i - 1])
+      await sleep(delay)
+    }
+    try {
+      await sendVoiceReply(userId, segments[i])
+    } catch (err) {
+      logger.logSystem('VoiceReplySplit: segment failed', {
+        userId,
+        segment: i,
+        error: (err as Error).message,
+      })
+      break
+    }
+  }
+}
+
+/**
+ * 获取第二阶段回复：基于第一阶段的内容继续回复
+ * 将第一阶段的回复作为上下文，让 AI 继续回复剩余内容
+ */
+async function getSecondStageResponse(
+  userId: number,
+  userMessage: string,
+  firstResponse: string,
+  replyType: 'text' | 'voice',
+  aiConfig: AIConfig,
+): Promise<string | null> {
+  try {
+    // 构建包含第一阶段回复的上下文
+    const secondStagePrompt = '你之前已经回复了用户的第一部分："${firstResponse}"。现在请继续回复剩余内容，不要重复第一部分已经说过的内容。直接给出剩余的详细内容。'
+
+    const response = await processAIMessage(
+      userId,
+      userMessage + '\n\n[系统提示：你之前已经回复了第一部分："' + firstResponse + '"，现在请继续回复剩余内容，不要重复第一部分已经说过的内容]',
+      replyType,
+      aiConfig,
+    )
+
+    if (response.content) {
+      return response.content.trim()
+    }
+    return null
+  } catch (err) {
+    logger.logSystem('SecondStageResponse: failed', { error: (err as Error).message })
+    return null
   }
 }
 
@@ -208,10 +307,42 @@ export async function handleVoiceReply(event: Record<string, unknown>): Promise<
     },
   })
 
-  // 发送回复
-  if (replyType === 'voice') {
-    await sendVoiceReply(userId, response.content)
+  // 发送回复 — 检查是否为分段回复
+  if (response._isSplitReply && response._firstResponse) {
+    // ====== 分段回复模式 ======
+    // 阶段一：发送快速首条响应
+    if (replyType === 'voice') {
+      await sendVoiceReply(userId, response._firstResponse)
+    } else {
+      await sendTextReply(userId, response._firstResponse)
+    }
+
+    // 短暂延迟后获取第二阶段回复
+    await sleep(800)
+
+    // 阶段二：获取完整回复（包含第一阶段上下文）
+    const secondResponse = await getSecondStageResponse(
+      userId,
+      textContent,
+      response._firstResponse,
+      replyType,
+      config.ai,
+    )
+
+    if (secondResponse) {
+      // 发送第二阶段回复（分段）
+      if (replyType === 'voice') {
+        await sendVoiceReplySplit(userId, secondResponse)
+      } else {
+        await sendTextReplySplit(userId, secondResponse)
+      }
+    }
   } else {
-    await sendTextReply(userId, response.content)
+    // ====== 普通回复模式 ======
+    if (replyType === 'voice') {
+      await sendVoiceReplySplit(userId, response.content)
+    } else {
+      await sendTextReplySplit(userId, response.content)
+    }
   }
 }

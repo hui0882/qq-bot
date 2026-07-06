@@ -11,6 +11,12 @@ export function buildSystemPrompt(
 ): ChatMessage {
   const base = customSystemPrompt || '你是一个友好、有帮助的 AI 助手。请用中文回复。'
 
+  // 分段回复工具说明
+  const splitToolHint = '\n\n重要：当用户的问题需要详细解释或较长回复时（如解释概念、提供建议、回答复杂问题），' +
+    '请使用 reply_in_parts 工具先给出简短的第一反应，然后再详细回复。' +
+    '这会让用户感受到你在认真倾听和关心他们。' +
+    '对于简单的问候、简短回答等不需要分段的情况，直接回复即可。'
+
   if (replyType === 'voice') {
     return {
       role: 'system',
@@ -19,12 +25,13 @@ export function buildSystemPrompt(
         '2. 不使用 markdown 格式、代码块、列表符号\n' +
         '3. 不使用括号注释、表情符号\n' +
         '4. 语句通顺自然，适合朗读\n' +
-        '5. 直接回答问题，不要说"好的""没问题"等开场白',
+        '5. 直接回答问题，不要说"好的""没问题"等开场白' +
+        splitToolHint,
     }
   }
 
   return {
     role: 'system',
-    content: base,
+    content: base + splitToolHint,
   }
 }

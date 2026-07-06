@@ -1,5 +1,5 @@
 // src/lib/logger.ts
-import { appendFileSync, existsSync, mkdirSync } from 'fs'
+import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync } from 'fs'
 import { join } from 'path'
 import { v4 as uuidv4 } from 'uuid'
 import type { LogEntry } from '@/types/napcat'
@@ -7,6 +7,9 @@ import { configManager } from './config'
 
 export type LogListener = (entry: LogEntry) => void
 export type MessageEventListener = (entry: LogEntry) => void
+
+/** 启动时从日志文件加载的条数 */
+const LOAD_ON_STARTUP = 100
 
 class Logger {
   private buffer: LogEntry[] = []
@@ -22,6 +25,54 @@ class Logger {
         this.trimBuffer()
       }
     })
+    // 启动时加载最近的日志
+    this.loadRecentLogs()
+  }
+
+  /**
+   * 启动时从最近的 JSONL 文件加载最近的日志条目
+   */
+  private loadRecentLogs(): void {
+    try {
+      const config = configManager.getConfig()
+      const logDir = join(process.cwd(), config.log.logDir)
+      if (!existsSync(logDir)) return
+
+      // 获取所有 JSONL 文件，按日期倒序
+      const files = readdirSync(logDir)
+        .filter(f => f.endsWith('.jsonl'))
+        .sort()
+        .reverse()
+
+      if (files.length === 0) return
+
+      const entries: LogEntry[] = []
+      for (const file of files) {
+        if (entries.length >= LOAD_ON_STARTUP) break
+        const filePath = join(logDir, file)
+        const content = readFileSync(filePath, 'utf-8')
+        const lines = content.trim().split('\n').filter(l => l.length > 0)
+
+        // 从文件末尾向前读取
+        for (let i = lines.length - 1; i >= 0 && entries.length < LOAD_ON_STARTUP; i--) {
+          try {
+            const entry = JSON.parse(lines[i]) as LogEntry
+            // 跳过心跳和 WS received 日志（与 buffer 逻辑一致）
+            if (entry.action === 'heartbeat') continue
+            if (entry.type === 'system' && (entry.data as { message?: string })?.message === 'WS received') continue
+            entries.push(entry)
+          } catch {
+            // 跳过解析失败的行
+          }
+        }
+      }
+
+      // 按时间正序放入 buffer
+      this.buffer = entries.reverse()
+      console.log(`[Logger] 已从日志文件加载 ${this.buffer.length} 条历史日志`)
+    } catch (err) {
+      console.error('[Logger] 加载历史日志失败:', err)
+    }
   }
 
   private trimBuffer(): void {
