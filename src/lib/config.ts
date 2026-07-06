@@ -30,10 +30,6 @@ const DEFAULT_CONFIG: PlatformConfig = {
     reconnectInterval: 5000,
     maxReconnectInterval: 30000,
   },
-  api: {
-    url: '',
-    token: '',
-  },
   tts: {
     enabled: false,
     apiUrl: '',
@@ -209,7 +205,6 @@ class ConfigManager {
       }
       return {
         ws: { ...DEFAULT_CONFIG.ws, ...parsed.ws },
-        api: { ...DEFAULT_CONFIG.api, ...parsed.api },
         tts: { ...DEFAULT_CONFIG.tts, ...parsed.tts },
         voiceReply: { ...DEFAULT_CONFIG.voiceReply, ...parsed.voiceReply },
         friendRequest: { ...DEFAULT_CONFIG.friendRequest, ...parsed.friendRequest },
@@ -258,8 +253,6 @@ class ConfigManager {
     if (old.ws.url !== curr.ws.url) keys.push('ws.url')
     if (old.ws.token !== curr.ws.token) keys.push('ws.token')
     if (old.ws.reconnect !== curr.ws.reconnect) keys.push('ws.reconnect')
-    if (old.api?.url !== curr.api?.url) keys.push('api.url')
-    if (old.api?.token !== curr.api?.token) keys.push('api.token')
     if (old.tts?.apiKey !== curr.tts?.apiKey) keys.push('tts.apiKey')
     if (old.tts?.enabled !== curr.tts?.enabled) keys.push('tts.enabled')
     if (old.voiceReply?.mode !== curr.voiceReply?.mode) keys.push('voiceReply.mode')
@@ -287,7 +280,6 @@ class ConfigManager {
   updateConfig(partial: Partial<PlatformConfig>): void {
     this.config = {
       ws: { ...this.config.ws, ...partial.ws },
-      api: { ...this.config.api, ...partial.api },
       tts: { ...this.config.tts, ...partial.tts },
       voiceReply: { ...this.config.voiceReply, ...partial.voiceReply },
       friendRequest: { ...this.config.friendRequest, ...partial.friendRequest },
