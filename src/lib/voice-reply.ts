@@ -9,6 +9,7 @@ import { dispatchCommand } from './commands'
 import { logger } from './logger'
 import { processAIMessage } from './ai'
 import { readFileSync, unlinkSync } from 'fs'
+import { splitMessage, calculateDelay, sleep } from './message-splitter'
 
 const lastReplyTime = new Map<number, number>()
 const REPLY_COOLDOWN = 3000
@@ -99,6 +100,50 @@ async function sendVoiceReply(userId: number, text: string): Promise<void> {
     logger.logSystem('VoiceReply: error', { error: (err as Error).message })
   } finally {
     try { unlinkSync(ttsResult.audioPath) } catch { /* ignore */ }
+  }
+}
+
+/**
+ * 分段发送文字消息
+ * 首段立即发送，后续段按动态延迟发送
+ */
+async function sendTextReplySplit(userId: number, text: string): Promise<void> {
+  const segments = splitMessage(text)
+
+  // 如果没有分隔符，fallback 为整条发送
+  if (segments.length <= 1) {
+    await sendTextReply(userId, text)
+    return
+  }
+
+  for (let i = 0; i < segments.length; i++) {
+    if (i > 0) {
+      const delay = calculateDelay(segments[i])
+      await sleep(delay)
+    }
+    await sendTextReply(userId, segments[i])
+  }
+}
+
+/**
+ * 分段发送语音消息
+ * 首段立即发送，后续段按动态延迟发送
+ */
+async function sendVoiceReplySplit(userId: number, text: string): Promise<void> {
+  const segments = splitMessage(text)
+
+  // 如果没有分隔符，fallback 为整条发送
+  if (segments.length <= 1) {
+    await sendVoiceReply(userId, text)
+    return
+  }
+
+  for (let i = 0; i < segments.length; i++) {
+    if (i > 0) {
+      const delay = calculateDelay(segments[i])
+      await sleep(delay)
+    }
+    await sendVoiceReply(userId, segments[i])
   }
 }
 
@@ -210,8 +255,8 @@ export async function handleVoiceReply(event: Record<string, unknown>): Promise<
 
   // 发送回复
   if (replyType === 'voice') {
-    await sendVoiceReply(userId, response.content)
+    await sendVoiceReplySplit(userId, response.content)
   } else {
-    await sendTextReply(userId, response.content)
+    await sendTextReplySplit(userId, response.content)
   }
 }
