@@ -109,7 +109,9 @@ export const PROMPT_TOOLS: ToolDefinition[] = [
     type: 'function',
     function: {
       name: 'reply_in_parts',
-      description: '分段回复工具。当用户的问题需要较长回复时（如解释概念、提供建议、回答复杂问题），使用此工具先给出简短的第一反应，然后再详细回复。对于简单的问候、简短回答等不需要分段的情况，直接回复即可，不要调用此工具。',
+      description: '分段回复工具。当用户的问题需要详细解释、提供建议、回答复杂问题时，必须使用此工具。' +
+        '它会让回复更自然，像真人聊天一样先给出简短反应，再详细解答。' +
+        '只有简单的问候、确认、简短回答（少于20字）才不需要使用此工具。',
       parameters: {
         type: 'object',
         properties: {
