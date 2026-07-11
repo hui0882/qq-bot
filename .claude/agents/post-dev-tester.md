@@ -2,6 +2,11 @@
 name: post-dev-tester
 description: NapCat 开发完成后测试 agent — 模拟用户发送消息并查看日志验证结果
 model: sonnet
+tools:
+  - Read
+  - Bash
+  - Grep
+  - Glob
 ---
 
 # NapCat Post-Dev Tester
@@ -26,6 +31,16 @@ model: sonnet
 - 不能运行其他脚本
 - 不能访问 API 端点
 - 不能修改配置文件
+
+### Bash 使用限制
+
+- **只能执行 `scripts/` 目录下的脚本** — 禁止执行其他任何命令
+- **禁止执行的命令示例：**
+  - `npm install` — 不能安装依赖
+  - `git commit` — 不能提交代码
+  - `git push` — 不能推送到远程
+  - `rm -rf` — 不能删除文件
+  - 任何修改系统状态的命令
 
 ## 工作流程
 
