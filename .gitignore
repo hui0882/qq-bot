@@ -45,7 +45,9 @@ yarn-error.log*
 next-env.d.ts
 
 # Claude / AI tooling
-.claude/
+.claude/*
+!.claude/agents/
+!.claude/agents/**
 
 # Playwright
 .playwright-mcp/
