@@ -2,17 +2,19 @@
 import type { AIConfig } from '@/types/napcat'
 import type { ChatMessage, LLMResponse } from './types'
 import { callLLM } from './llm-client'
-import { aiContext, getUserAIConfig } from '@/lib/db/queries/ai'
+import { getUserAIConfig } from '@/lib/db/queries/ai'
 import { buildSystemPrompt } from './prompt'
 import { PROMPT_TOOLS, executeToolCall } from './tools'
 import { SCHOOL_TOOLS } from '@/lib/school/tools'
 import { logger } from '@/lib/logger'
+import { memoryManager } from '@/lib/memory'
 
 export type { LLMResponse }
 
 /**
  * AI 管道入口：上下文构建 → 系统提示词 → 模型调用 → 工具调用 → 保存上下文。
- * 支持原生 function calling。
+ *
+ * 使用 Memory Manager 构建上下文（用户画像 + 摘要 + 最近消息 + 相关记忆）
  */
 export async function processAIMessage(
   userId: number,
@@ -44,17 +46,32 @@ export async function processAIMessage(
 
   const systemPrompt = basePrompt
 
-  // 4. 读取上下文
-  const contextMessages = aiContext.getContext(userId, config.maxContextRounds)
+  // 4. 使用 Memory Manager 构建上下文
+  const userIdStr = String(userId)
+  const memoryContext = memoryManager.buildContext(userIdStr, userMessage, 3)
 
-  // 5. 组装消息列表
+  // 5. 构建 Memory 上下文提示词
+  const memoryPrompt = buildMemoryPrompt(memoryContext)
+
+  // 6. 组装消息列表
   const messages: ChatMessage[] = [
     systemPrompt,
-    ...contextMessages.map(m => ({ role: m.role, content: m.content } as ChatMessage)),
-    { role: 'user', content: userMessage },
   ]
 
-  // 6. 调用 LLM（带工具定义）
+  // 添加 Memory 上下文（如果有的话）
+  if (memoryPrompt) {
+    messages.push({ role: 'system', content: memoryPrompt })
+  }
+
+  // 添加最近消息作为对话上下文
+  for (const msg of memoryContext.recentMessages) {
+    messages.push({ role: msg.role as 'user' | 'assistant', content: msg.content })
+  }
+
+  // 添加当前用户消息
+  messages.push({ role: 'user', content: userMessage })
+
+  // 7. 调用 LLM（带工具定义）
   const llmConfig = {
     baseUrl: config.baseUrl,
     apiKey: config.apiKey,
@@ -69,14 +86,14 @@ export async function processAIMessage(
     tools: [...PROMPT_TOOLS, ...SCHOOL_TOOLS],
   })
 
-  // 7. 附加提示词元数据
+  // 8. 附加提示词元数据
   response.promptMeta = {
     systemPrompt: globalConfig.systemPrompt || '',
     personalPrompt: config.customSystemPrompt || null,
-    context: contextMessages.map(m => ({ role: m.role, content: m.content })),
+    context: memoryContext.recentMessages.map(m => ({ role: m.role, content: m.content })),
   }
 
-  // 8. 处理工具调用
+  // 9. 处理工具调用
   if (!response.error && response.toolCalls && response.toolCalls.length > 0) {
     const toolCall = response.toolCalls[0] // 取第一个工具调用
     let args: Record<string, unknown> = {}
@@ -161,24 +178,55 @@ export async function processAIMessage(
     }
   }
 
-  // 9. 保存上下文
+  // 10. 保存对话到 Memory（主流程同步保存，不等待 Worker）
   if (!response.error && response.content) {
-    aiContext.saveContext(userId, userMessage, response.content)
+    memoryManager.saveConversation(userIdStr, userMessage, response.content)
   }
 
   return response
 }
 
 /**
- * 清除用户 AI 上下文
+ * 构建 Memory 上下文提示词
+ */
+function buildMemoryPrompt(context: {
+  userProfiles: Record<string, string>
+  conversationSummary: string
+  relatedMemories: string[]
+}): string | null {
+  const parts: string[] = []
+
+  // 用户画像
+  const profileEntries = Object.entries(context.userProfiles)
+  if (profileEntries.length > 0) {
+    parts.push(`【用户画像】\n${profileEntries.map(([k, v]) => `- ${k}: ${v}`).join('\n')}`)
+  }
+
+  // 对话摘要
+  if (context.conversationSummary) {
+    parts.push(`【近期摘要】\n${context.conversationSummary}`)
+  }
+
+  // 相关记忆
+  if (context.relatedMemories.length > 0) {
+    parts.push(`【相关记忆】\n${context.relatedMemories.map(m => `- ${m}`).join('\n')}`)
+  }
+
+  if (parts.length === 0) return null
+
+  return `以下是关于当前用户的背景信息，请在回复时参考：\n\n${parts.join('\n\n')}`
+}
+
+/**
+ * 清除用户 AI 上下文（保留兼容）
  */
 export function clearUserAIContext(userId: number): void {
-  aiContext.clearContext(userId)
+  memoryManager.clearAll(String(userId))
 }
 
 /**
  * 获取 AI 上下文统计
  */
 export function getAIContextStats() {
-  return aiContext.getStats()
+  return memoryManager.getStats?.() || { totalMessages: 0, userCount: 0, cachedUsers: 0 }
 }

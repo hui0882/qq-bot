@@ -159,6 +159,55 @@ export function initDatabase(): void {
     )
   `)
 
+  // 8. Memory 消息记录表（原始聊天，支持多用户隔离）
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS memory_messages (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id TEXT NOT NULL,
+      role TEXT NOT NULL,
+      content TEXT NOT NULL,
+      intent TEXT,
+      created_at INTEGER NOT NULL,
+      processed INTEGER DEFAULT 0
+    )
+  `)
+
+  // 9. Memory 对话摘要表（每用户一条，覆盖更新）
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS memory_summaries (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id TEXT NOT NULL UNIQUE,
+      summary TEXT NOT NULL,
+      last_message_id INTEGER,
+      updated_at INTEGER NOT NULL
+    )
+  `)
+
+  // 10. Memory 用户画像表（EAV 模式）
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS memory_profiles (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id TEXT NOT NULL,
+      key TEXT NOT NULL,
+      value TEXT NOT NULL,
+      confidence REAL DEFAULT 0.8,
+      updated_at INTEGER NOT NULL,
+      UNIQUE(user_id, key)
+    )
+  `)
+
+  // 11. Memory 长期记忆表
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS memory_entries (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id TEXT NOT NULL,
+      memory_type TEXT NOT NULL,
+      content TEXT NOT NULL,
+      importance REAL DEFAULT 0.5,
+      created_at INTEGER NOT NULL
+    )
+  `)
+
   // 创建索引
   database.exec(`
     CREATE INDEX IF NOT EXISTS idx_user_settings_user_id ON user_settings(user_id);
@@ -166,9 +215,14 @@ export function initDatabase(): void {
     CREATE INDEX IF NOT EXISTS idx_ai_timestamp ON ai_conversations(timestamp);
     CREATE INDEX IF NOT EXISTS idx_logs_type ON logs(type);
     CREATE INDEX IF NOT EXISTS idx_logs_timestamp ON logs(timestamp);
+    CREATE INDEX IF NOT EXISTS idx_memory_messages_user ON memory_messages(user_id, processed);
+    CREATE INDEX IF NOT EXISTS idx_memory_messages_created ON memory_messages(created_at);
+    CREATE INDEX IF NOT EXISTS idx_memory_profiles_user ON memory_profiles(user_id);
+    CREATE INDEX IF NOT EXISTS idx_memory_entries_user ON memory_entries(user_id, memory_type);
+    CREATE INDEX IF NOT EXISTS idx_memory_entries_importance ON memory_entries(importance DESC);
   `)
 
-  console.log('[DB] Database initialized successfully (v2 schema)')
+  console.log('[DB] Database initialized successfully (v3 schema with memory)')
 }
 
 /**
