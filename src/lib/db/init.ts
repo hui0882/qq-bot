@@ -5,8 +5,8 @@
 
 import { initDatabase, closeDatabase } from './index'
 import { needsMigration, runMigration } from './migrate'
-import { getAIContextManager } from './queries/ai'
 import { initCronTables } from '@/lib/cron/store'
+import { memoryWorker } from '@/lib/memory'
 
 /**
  * 初始化数据库
@@ -27,8 +27,8 @@ export function initializeDatabase(): void {
   // 初始化定时任务表
   initCronTables()
 
-  // 初始化 AI 上下文管理器
-  getAIContextManager().init()
+  // 启动 Memory Worker（异步记忆整理）
+  memoryWorker.start()
 
   console.log('[DB] Database ready')
 }

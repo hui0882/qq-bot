@@ -4,7 +4,7 @@
 import { napcatWS } from './napcat-ws'
 import { configManager } from './config'
 import { logger } from './logger'
-import { aiContext } from './db/queries/ai'
+import { memoryManager } from './memory'
 
 export interface PendingFriendRequest {
   flag: string
@@ -129,12 +129,12 @@ export async function handleFriendAddNotice(event: Record<string, unknown>): Pro
   if (result.status === 'ok') {
     logger.logSystem('WelcomeMessage: sent', { userId })
 
-    // 记录到 AI 上下文（作为 assistant 消息，不需要用户消息）
+    // 记录到 Memory（作为系统事件）
     try {
-      aiContext.saveContext(userId, '[好友添加]', welcomeMessage)
-      logger.logSystem('WelcomeMessage: saved to context', { userId })
+      memoryManager.saveConversation(String(userId), '[好友添加]', welcomeMessage)
+      logger.logSystem('WelcomeMessage: saved to memory', { userId })
     } catch (err) {
-      logger.logSystem('WelcomeMessage: save context failed', { error: (err as Error).message })
+      logger.logSystem('WelcomeMessage: save memory failed', { error: (err as Error).message })
     }
   } else {
     logger.logSystem('WelcomeMessage: send failed', { error: result.message })
