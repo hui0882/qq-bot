@@ -6,13 +6,12 @@
 import { initDatabase, closeDatabase } from './index'
 import { needsMigration, runMigration } from './migrate'
 import { initCronTables } from '@/lib/cron/store'
-import { memoryWorker } from '@/lib/memory'
 
 /**
  * 初始化数据库
  * 检查是否需要迁移，然后初始化表结构
  */
-export function initializeDatabase(): void {
+export async function initializeDatabase(): Promise<void> {
   console.log('[DB] Initializing database...')
 
   // 检查是否需要从 JSON 迁移
@@ -27,8 +26,13 @@ export function initializeDatabase(): void {
   // 初始化定时任务表
   initCronTables()
 
-  // 启动 Memory Worker（异步记忆整理）
-  memoryWorker.start()
+  // 启动 Memory Worker（异步记忆整理）- 使用动态导入避免循环依赖
+  try {
+    const { memoryWorker } = await import('@/lib/memory')
+    memoryWorker.start()
+  } catch (err) {
+    console.error('[DB] Failed to start memory worker:', err)
+  }
 
   console.log('[DB] Database ready')
 }
