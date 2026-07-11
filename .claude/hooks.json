@@ -1,0 +1,8 @@
+{
+  "hooks": {
+    "pre-write": {
+      "description": "防止主 Agent 直接执行开发任务",
+      "script": "check-development-permission.sh"
+    }
+  }
+}
