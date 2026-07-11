@@ -151,12 +151,20 @@ class ConfigManager {
 
   constructor() {
     // 初始化数据库（如果需要，会自动从 JSON 迁移）
-    initializeDatabase()
+    this.initDatabase()
     this.config = this.loadConfig()
     this.startWatcher()
 
     // 延迟启动定时任务调度器（避免循环依赖）
     this.initScheduler()
+  }
+
+  private async initDatabase(): Promise<void> {
+    try {
+      await initializeDatabase()
+    } catch (err) {
+      console.error('[Config] 初始化数据库失败:', err)
+    }
   }
 
   private async initScheduler(): Promise<void> {
