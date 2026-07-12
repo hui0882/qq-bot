@@ -2,13 +2,13 @@
 // /clear command handler — 清空 AI 上下文
 
 import { registerHandler } from '../registry'
-import { clearUserAIContext } from '../../ai'
+import { clearUserConversation } from '../../ai'
 import { logger } from '../../logger'
 import type { CommandHandler } from '../types'
 
 const handler: CommandHandler = async (ctx) => {
   try {
-    clearUserAIContext(ctx.userId)
+    clearUserConversation(ctx.userId)
     logger.logSystem('Command: clear context', { userId: ctx.userId })
     return { reply: '🧹 AI 上下文已清空！', handled: true }
   } catch (err) {

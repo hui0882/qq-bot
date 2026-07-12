@@ -332,3 +332,16 @@ export function clearAllMemory(userId: string): void {
   })
   transaction()
 }
+
+/**
+ * 仅清除对话记忆（保留画像和长期记忆）
+ */
+export function clearConversationMemory(userId: string): void {
+  const transaction = db.transaction(() => {
+    db.prepare('DELETE FROM memory_messages WHERE user_id = ?').run(userId)
+    db.prepare('DELETE FROM memory_summaries WHERE user_id = ?').run(userId)
+    // memory_profiles 保留
+    // memory_entries 保留
+  })
+  transaction()
+}

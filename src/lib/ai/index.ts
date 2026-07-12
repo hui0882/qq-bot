@@ -225,6 +225,13 @@ export function clearUserAIContext(userId: number): void {
 }
 
 /**
+ * 仅清除对话记忆（保留画像和长期记忆）
+ */
+export function clearUserConversation(userId: number): void {
+  memoryManager.clearConversation(String(userId))
+}
+
+/**
  * 获取 AI 上下文统计
  */
 export function getAIContextStats() {
