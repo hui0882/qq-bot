@@ -207,6 +207,14 @@ class MemoryManagerImpl {
   }
 
   /**
+   * 仅清除对话记忆（保留画像和长期记忆）
+   */
+  clearConversation(userId: string): void {
+    store.clearConversationMemory(userId)
+    memoryCache.delete(userId)
+  }
+
+  /**
    * 使用户缓存失效
    */
   invalidateCache(userId: string): void {
@@ -358,6 +366,8 @@ export const memoryManager = {
     getMemoryManager().clearAll(userId),
   invalidateCache: (userId: string) =>
     getMemoryManager().invalidateCache(userId),
+  clearConversation: (userId: string) =>
+    getMemoryManager().clearConversation(userId),
   getUnprocessedMessages: (userId?: string, limit?: number) =>
     getMemoryManager().getUnprocessedMessages(userId, limit),
   markProcessed: (messageIds: number[]) =>
