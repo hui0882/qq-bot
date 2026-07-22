@@ -42,7 +42,7 @@ npm install
 创建配置文件：
 
 ```bash
-cp data/config.example.json data/config.json
+cp data/config.template.json data/config.json
 ```
 
 编辑 `data/config.json`：
@@ -74,7 +74,7 @@ npm run dev
 
 ### 5. 访问
 
-打开浏览器访问 `http://localhost:3000`，输入配置的 `auth.token` 登录。
+打开浏览器访问 `http://localhost:8090`，输入配置的 `auth.token` 登录。
 
 ## 首次使用
 

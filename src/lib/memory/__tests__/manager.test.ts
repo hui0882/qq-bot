@@ -12,21 +12,28 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 
 // Mock 依赖
-const mockAddMessage = vi.fn()
-const mockGetRecentMessages = vi.fn()
-const mockGetProfiles = vi.fn()
-const mockGetSummary = vi.fn()
-const mockGetEntries = vi.fn()
-const mockSearchEntries = vi.fn()
-const mockUpsertProfile = vi.fn()
-const mockUpsertProfiles = vi.fn()
-const mockUpsertSummary = vi.fn()
-const mockAddEntry = vi.fn()
-const mockAddEntries = vi.fn()
-const mockMarkMessagesProcessed = vi.fn()
-const mockGetUnprocessedMessages = vi.fn()
-const mockGetUnprocessedCount = vi.fn()
-const mockClearAllMemory = vi.fn()
+const {
+  mockAddMessage, mockGetRecentMessages, mockGetProfiles, mockGetSummary,
+  mockGetEntries, mockSearchEntries, mockUpsertProfile, mockUpsertProfiles,
+  mockUpsertSummary, mockAddEntry, mockAddEntries, mockMarkMessagesProcessed,
+  mockGetUnprocessedMessages, mockGetUnprocessedCount, mockClearAllMemory,
+} = vi.hoisted(() => ({
+  mockAddMessage: vi.fn(),
+  mockGetRecentMessages: vi.fn(),
+  mockGetProfiles: vi.fn(),
+  mockGetSummary: vi.fn(),
+  mockGetEntries: vi.fn(),
+  mockSearchEntries: vi.fn(),
+  mockUpsertProfile: vi.fn(),
+  mockUpsertProfiles: vi.fn(),
+  mockUpsertSummary: vi.fn(),
+  mockAddEntry: vi.fn(),
+  mockAddEntries: vi.fn(),
+  mockMarkMessagesProcessed: vi.fn(),
+  mockGetUnprocessedMessages: vi.fn(),
+  mockGetUnprocessedCount: vi.fn(),
+  mockClearAllMemory: vi.fn(),
+}))
 
 vi.mock('../store', () => ({
   addMessage: mockAddMessage,
@@ -47,11 +54,13 @@ vi.mock('../store', () => ({
 }))
 
 // Mock cache
-const mockCacheGet = vi.fn()
-const mockCacheSet = vi.fn()
-const mockCacheDelete = vi.fn()
-const mockCacheHas = vi.fn()
-const mockCacheGetStats = vi.fn()
+const { mockCacheGet, mockCacheSet, mockCacheDelete, mockCacheHas, mockCacheGetStats } = vi.hoisted(() => ({
+  mockCacheGet: vi.fn(),
+  mockCacheSet: vi.fn(),
+  mockCacheDelete: vi.fn(),
+  mockCacheHas: vi.fn(),
+  mockCacheGetStats: vi.fn(),
+}))
 
 vi.mock('../cache', () => ({
   memoryCache: {

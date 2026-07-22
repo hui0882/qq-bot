@@ -15,6 +15,10 @@
 | ⚙️ 设置 | WS 连接、语音回复、好友请求、认证配置 |
 | 🤖 命令系统 | /help、/response-type 等用户命令 |
 | 🎙️ TTS 语音 | MiMo TTS 集成，自动语音回复 |
+| 🤖 AI 聊天 | LLM 集成、上下文管理、工具调用 |
+| 🧠 记忆系统 | 用户记忆、缓存管理、持久化存储 |
+| ⏰ 定时任务 | Cron 任务调度、命令解析、任务管理 |
+| 🏫 学校模块 | 学校相关功能 |
 
 ## 快速开始
 
@@ -34,7 +38,7 @@ cd napcatQQ
 npm install
 
 # 配置
-cp data/config.example.json data/config.json
+cp data/config.template.json data/config.json
 # 编辑 data/config.json 填入你的配置
 ```
 
@@ -92,10 +96,28 @@ napcatQQ/
 │   │   │       ├── ai.ts       # AI 配置和上下文
 │   │   │       └── logs.ts     # 日志查询
 │   │   ├── ai/                 # AI 聊天模块
-│   │   │   ├── types.ts        # AI 类型定义
+│   │   │   ├── index.ts        # AI 管道入口
 │   │   │   ├── llm-client.ts   # LLM 调用客户端
 │   │   │   ├── prompt.ts       # 提示词构建
-│   │   │   └── index.ts        # AI 管道入口
+│   │   │   ├── tools.ts        # 工具定义
+│   │   │   └── types.ts        # 类型定义
+│   │   ├── memory/             # 记忆系统
+│   │   │   ├── index.ts        # 记忆模块入口
+│   │   │   ├── manager.ts      # 记忆管理器
+│   │   │   ├── store.ts        # 记忆存储
+│   │   │   ├── cache.ts        # 缓存管理
+│   │   │   └── worker.ts       # 后台工作器
+│   │   ├── cron/               # 定时任务模块
+│   │   │   ├── index.ts        # 模块入口
+│   │   │   ├── parser.ts       # Cron 表达式解析
+│   │   │   ├── scheduler.ts    # 任务调度器
+│   │   │   ├── executor.ts     # 任务执行器
+│   │   │   ├── commands.ts     # 命令处理
+│   │   │   ├── store.ts        # 任务存储
+│   │   │   └── tools.ts        # 工具函数
+│   │   ├── school/             # 学校模块
+│   │   ├── commands/           # 命令模块
+│   │   ├── message-splitter.ts # 消息分段
 │   │   ├── napcat-ws.ts        # WebSocket 客户端（事件接收 + API 请求）
 │   │   ├── config.ts           # 配置管理（热重载）
 │   │   ├── logger.ts           # 日志系统

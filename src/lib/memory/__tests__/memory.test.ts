@@ -13,12 +13,14 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 
 // Mock db module before importing store
-const mockExec = vi.fn()
-const mockPrepare = vi.fn()
-const mockRun = vi.fn()
-const mockGet = vi.fn()
-const mockAll = vi.fn()
-const mockTransaction = vi.fn()
+const { mockExec, mockPrepare, mockRun, mockGet, mockAll, mockTransaction } = vi.hoisted(() => ({
+  mockExec: vi.fn(),
+  mockPrepare: vi.fn(),
+  mockRun: vi.fn(),
+  mockGet: vi.fn(),
+  mockAll: vi.fn(),
+  mockTransaction: vi.fn(),
+}))
 
 vi.mock('../../db', () => ({
   db: {
