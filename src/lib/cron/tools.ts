@@ -723,3 +723,78 @@ async function resumeScheduledTask(userId: string, taskIdOrPrefix: string): Prom
 
   return `✅ 已恢复任务「${task.name}」`
 }
+
+// ============ 新架构引擎集成 ============
+
+import { getCronEngine } from './engine'
+import { createExecution, computeNextExecutionTime } from './engine/processor'
+import type { ScheduleConfig } from './engine/types'
+
+/**
+ * 创建任务后生成第一条 Execution（新架构）
+ *
+ * 当 createTask 成功后，计算首次执行时间并创建 Execution 记录。
+ * 同时注册到引擎。
+ *
+ * @param task - 创建的 CronTask
+ * @param parsedSchedule - 解析后的调度配置
+ */
+export function createFirstExecution(
+  task: CronTask,
+  parsedSchedule: ScheduleConfig
+): void {
+  const engine = getCronEngine()
+
+  // 构建引擎 Task 对象
+  const engineTask = {
+    id: task.id,
+    userId: task.userId,
+    name: task.name,
+    description: task.description,
+    schedule: parsedSchedule,
+    scheduleRaw: task.scheduleRaw,
+    prompt: task.prompt,
+    tools: task.tools,
+    outputFormat: task.outputFormat,
+    enabled: task.enabled,
+    createdAt: task.createdAt,
+    updatedAt: task.updatedAt,
+  }
+
+  // 计算首次执行时间
+  const firstExecTime = computeNextExecutionTime(engineTask, Date.now())
+  if (firstExecTime) {
+    createExecution({
+      taskId: task.id,
+      userId: task.userId,
+      scheduledAt: firstExecTime,
+      status: 'pending',
+      scheduleType: parsedSchedule.type,
+      taskName: task.name,
+      prompt: task.prompt,
+      tools: task.tools ? JSON.stringify(task.tools) : undefined,
+      outputFormat: task.outputFormat,
+      attempts: 0,
+      maxRetries: 2,
+    })
+  }
+
+  // 注册到引擎
+  engine.registerTask(engineTask)
+}
+
+/**
+ * 解析后的调度转引擎 ScheduleConfig
+ */
+export function parsedToScheduleConfig(parsed: { type: string; cron?: string; interval?: number; at?: number }): ScheduleConfig {
+  switch (parsed.type) {
+    case 'at':
+      return { type: 'oneTime', at: parsed.at }
+    case 'every':
+      return { type: 'interval', interval: parsed.interval }
+    case 'cron':
+      return { type: 'cron', expression: parsed.cron }
+    default:
+      return { type: 'cron', expression: parsed.cron }
+  }
+}

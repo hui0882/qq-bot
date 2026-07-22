@@ -146,6 +146,9 @@ export function initCronTables(): void {
   `)
 
   console.log('[Cron Store] Tables initialized')
+
+  // 初始化 task_executions 表（新架构）
+  initTaskExecutionsTable()
 }
 
 // ============ CRUD 操作 ============
@@ -406,4 +409,42 @@ export function getTaskLogs(taskId: string, limit: number = 20): CronLog[] {
   ).all(taskId, limit) as CronLogRow[]
 
   return rows.map(rowToLog)
+}
+
+// ============ task_executions 表（新架构） ============
+
+/**
+ * 初始化 task_executions 表（新架构执行记录表）
+ */
+export function initTaskExecutionsTable(): void {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS task_executions (
+      id TEXT PRIMARY KEY,
+      task_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      scheduled_at INTEGER NOT NULL,
+      started_at INTEGER,
+      completed_at INTEGER,
+      status TEXT NOT NULL DEFAULT 'pending',
+      schedule_type TEXT NOT NULL,
+      task_name TEXT NOT NULL,
+      prompt TEXT NOT NULL,
+      tools TEXT,
+      output_format TEXT DEFAULT 'text',
+      result TEXT,
+      error TEXT,
+      duration INTEGER,
+      attempts INTEGER DEFAULT 0,
+      max_retries INTEGER DEFAULT 2,
+      created_at INTEGER NOT NULL,
+      FOREIGN KEY (task_id) REFERENCES cron_tasks(id)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_task_executions_task_id ON task_executions(task_id);
+    CREATE INDEX IF NOT EXISTS idx_task_executions_status ON task_executions(status);
+    CREATE INDEX IF NOT EXISTS idx_task_executions_scheduled_at ON task_executions(scheduled_at);
+    CREATE INDEX IF NOT EXISTS idx_task_executions_task_status ON task_executions(task_id, status);
+  `)
+
+  console.log('[Cron Store] task_executions table initialized')
 }

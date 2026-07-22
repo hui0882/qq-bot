@@ -78,3 +78,52 @@ export function initCronSystem(): void {
 
   console.log('[Cron] 定时任务系统已启动')
 }
+
+// ============ 新架构引擎导出 ============
+
+export {
+  // 类型
+  type Task,
+  type TaskExecution,
+  type ExecutionStatus,
+  type ScheduleType,
+  type ScheduleConfig,
+  type MissedPolicy,
+  type EngineConfig,
+  type EngineStatus,
+} from './engine'
+
+// 核心类
+export { PreFetchBuffer } from './engine/buffer'
+export { CronEngine, getCronEngine } from './engine/scheduler'
+
+// 处理器
+export {
+  casRunning,
+  markSuccess,
+  markFailed,
+  markCancelled,
+  markPending,
+  markSkipped,
+  createExecution,
+  getExecution,
+  computeNextExecutionTime,
+  scheduleNextExecution,
+  handleMissedExecution,
+  findMissedExecutions,
+  findRunningExecutions,
+  findPendingExecutions,
+  findPendingByTask,
+  deleteExecutionsByTask,
+  cancelPendingByTask,
+} from './engine/processor'
+
+// 恢复
+export { recover, fillBuffer } from './engine/recovery'
+export type { RecoveryResult } from './engine/recovery'
+
+// 工具函数
+export { createFirstExecution, parsedToScheduleConfig } from './tools'
+
+// 存储扩展
+export { initTaskExecutionsTable } from './store'
