@@ -18,16 +18,15 @@ tools:
 **你只能执行以下两种操作，其他一律禁止：**
 
 ### ✅ 允许的操作（仅以下两种）
-1. **执行模拟用户发送消息的脚本** — 唯一的测试方式
-2. **查询日志** — 判断执行情况
+1. **执行 `scripts/send-test-message.sh` 脚本** — 唯一合法的测试手段
+2. **查询日志文件** — 通过 Read/Grep/Glob 工具查看 `data/logs/` 目录下的日志，判断执行情况
 
 ### 🚫 绝对禁止的操作
+- ❌ **禁止自行构造 HTTP 请求（如 curl、fetch 等）—— 脚本内部的接口调用属于脚本行为，不属于 Agent 直接调用**
+- ❌ **禁止执行 `scripts/send-test-message.sh` 以外的任何 bash 命令**
 - ❌ **禁止通过内部 CRUD API 进行测试**
 - ❌ **禁止直接调用任何业务 API 接口**
-- ❌ **禁止执行任何非模拟消息发送的脚本或命令**
 - ❌ **禁止直接修改数据库或文件系统来验证功能**
-- ❌ **禁止使用 curl、fetch 或其他 HTTP 客户端直接调用接口**
-- ❌ **禁止执行任何其他 bash 命令**
 - ❌ **禁止启动或重启服务**
 - ❌ **禁止修改任何文件**
 - ❌ **禁止安装依赖**
@@ -37,7 +36,8 @@ tools:
 ### 测试原则
 - **所有测试必须从"用户视角"出发** — 通过模拟用户在 QQ 中发送消息来触发功能
 - **不允许走任何"后门"或"捷径"** — 不使用 API 直接测试
-- **唯一合法测试方式**：通过模拟用户消息脚本
+- **唯一合法测试方式**：通过 `scripts/send-test-message.sh` 脚本模拟用户消息
+- **脚本内部行为与 Agent 行为的区别**：脚本内部通过 `/api/test/inject` 接口实现消息注入，这是脚本的实现细节，不属于 Agent 直接调用接口
 
 ## 工作流程
 
@@ -64,16 +64,7 @@ VERBOSE=true ./scripts/send-test-message.sh "测试消息"
 ### 第三步：查看日志获取结果
 测试脚本执行后，通过查看日志文件获取详细的执行结果：
 
-```bash
-# 查看最新的日志
-cat data/logs/$(ls -t data/logs/*.jsonl | head -1) | tail -50
-
-# 搜索特定类型的日志
-grep '"type":"ai"' data/logs/*.jsonl | tail -20
-
-# 搜索工具调用日志
-grep 'tool_call' data/logs/*.jsonl | tail -10
-```
+使用 Read 工具读取日志文件，使用 Grep 工具搜索关键内容。
 
 ### 第四步：生成测试报告
 
@@ -122,18 +113,10 @@ grep 'tool_call' data/logs/*.jsonl | tail -10
 | `request` | `send_msg` | 消息发送请求和响应 |
 | `event` | `message_sent` | 消息发送成功事件 |
 
-**示例日志查找：**
-
-```bash
-# 查找 AI 响应
-grep '"action":"ai_response"' data/logs/*.jsonl
-
-# 查找工具调用
-grep '"toolCall"' data/logs/*.jsonl
-
-# 查找发送成功的消息
-grep '"action":"message_sent"' data/logs/*.jsonl
-```
+**日志查询方式（使用 Grep 工具）：**
+- 查找 AI 响应：搜索 `"action":"ai_response"`
+- 查找工具调用：搜索 `"toolCall"`
+- 查找发送成功的消息：搜索 `"action":"message_sent"`
 
 ## 测试脚本说明
 
@@ -143,6 +126,7 @@ grep '"action":"message_sent"' data/logs/*.jsonl
 - 走完整的消息处理流程（命令检测 → AI处理 → 工具调用 → WS发送）
 - 使用配置文件中的 token 进行认证
 - 脚本会输出简要结果，详细结果需要查看日志
+- **注意：脚本内部通过 `/api/test/inject` 接口实现消息注入，这是脚本的实现细节**
 
 **脚本选项：**
 ```
@@ -199,8 +183,9 @@ grep '"action":"message_sent"' data/logs/*.jsonl
 ## 注意事项
 
 1. **服务器必须已运行** — 如果服务器未运行，直接报告错误并退出
-2. **只使用测试脚本** — 不要自己构建 curl 命令
+2. **只使用 send-test-message.sh** — 不要自己构造 curl 命令，脚本内部的接口调用是脚本行为
 3. **通过日志验证结果** — 不要依赖脚本的简要输出
 4. **关注完整流程** — 确保消息走过了完整的处理管线
 5. **生成报告** — 每次测试后都必须输出结构化报告
-6. **⚠️ 绝对禁止使用 API 直接测试** — 只能通过模拟消息脚本测试
+6. **⚠️ 绝对禁止自行构造 HTTP 请求** — 只能通过 send-test-message.sh 脚本测试
+7. **查看日志使用 Read/Grep 工具** — 不要使用 bash 命令查看日志
