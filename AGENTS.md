@@ -8,10 +8,11 @@
 
 | Agent | 配置文件 | 用途 | subagent_type |
 |-------|----------|------|---------------|
-| 需求分析 Agent | `.Codex/agents/requirement-analyzer.md` | 需求拆分、问题定位 | `requirement-analyzer` |
-| 开发 Agent | `.Codex/agents/developer.md` | 代码开发、bug 修复 | `developer` |
-| 测试 Agent | `.Codex/agents/post-dev-tester.md` | 全链路测试 | `post-dev-tester` |
-| 日志 Agent | `.Codex/agents/log-reader.md` | 日志读取分析 | `log-reader` |
+| 需求分析 Agent | `.claude/agents/requirement-analyzer.md` | 需求拆分、问题定位 | `requirement-analyzer` |
+| 开发 Agent | `.claude/agents/developer.md` | 代码开发、bug 修复 | `developer` |
+| 单元测试 Agent | `.claude/agents/unit-tester.md` | 编写和运行单元测试 | `unit-tester` |
+| 测试 Agent | `.claude/agents/post-dev-tester.md` | 全链路测试 | `post-dev-tester` |
+| 日志 Agent | `.claude/agents/log-reader.md` | 日志读取分析 | `log-reader` |
 
 ### 执行规则
 
@@ -23,7 +24,7 @@
 | 问题定位 | 需求分析 Agent | 结合代码和日志定位问题 |
 | 代码开发 | 开发 Agent | 使用 `subagent_type="developer"` |
 | Bug 修复 | 开发 Agent | 使用 `subagent_type="developer"` |
-| 单元测试/自测 | 开发 Agent | 由开发 Agent 自行决定是否需要 |
+| 单元测试 | 单元测试 Agent | 使用 `subagent_type="unit-tester"` |
 | 全链路测试 | 测试 Agent | 使用 `subagent_type="post-dev-tester"` |
 
 #### 主 Agent 禁止的操作
@@ -50,7 +51,8 @@
 用户需求
   → 主 Agent 启动 requirement-analyzer Agent 分析需求
   → 主 Agent 创建分支
-  → 主 Agent 启动 developer Agent 开发（包含单元测试/自测）
+  → 主 Agent 启动 developer Agent 开发（包含编译自测）
+  → 主 Agent 启动 unit-tester Agent 编写并运行单元测试
   → 主 Agent 启动 post-dev-tester Agent 全链路测试
   → 主 Agent 审查结果，交由用户确认
   → 用户确认后，主 Agent 合并分支并推送
@@ -64,7 +66,8 @@
   → 主 Agent 启动 log-reader Agent 查看日志
   → 主 Agent 把日志结果提交给 requirement-analyzer Agent 定位问题
   → 主 Agent 创建分支
-  → 主 Agent 启动 developer Agent 修复（包含单元测试/自测）
+  → 主 Agent 启动 developer Agent 修复（包含编译自测）
+  → 主 Agent 启动 unit-tester Agent 编写回归测试
   → 主 Agent 启动 post-dev-tester Agent 全链路测试
   → 主 Agent 审查结果，交由用户确认
   → 用户确认后，主 Agent 合并分支并推送
@@ -89,6 +92,9 @@ Agent(subagent_type="requirement-analyzer", prompt="分析以下需求：...")
 # 代码开发
 Agent(subagent_type="developer", prompt="实现以下功能：...")
 
+# 单元测试
+Agent(subagent_type="unit-tester", prompt="为以下代码修改编写单元测试：...")
+
 # 全链路测试
 Agent(subagent_type="post-dev-tester", prompt="测试以下功能：...")
 
@@ -103,12 +109,3 @@ Agent(subagent_type="log-reader", prompt="查看以下日志：...")
 - ✅ 用户确认后才能合并到 main 分支
 - ✅ 用户确认后才能推送到远程仓库
 
-### Hooks 配置
-
-本项目配置了 pre-write hook，用于防止主 Agent 直接执行开发任务：
-
-- **触发时机**：写入文件之前
-- **检查逻辑**：如果当前操作是开发或 bug 修复，且执行者是主 Agent，则阻止写入
-- **目的**：确保使用专门的开发 Agent 执行开发任务
-
-详细的 hooks 配置请查看 `.Codex/hooks.json` 文件。

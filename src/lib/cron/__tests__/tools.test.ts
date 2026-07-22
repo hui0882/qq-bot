@@ -25,7 +25,7 @@ vi.mock('../parser', () => ({
 
 describe('CRON_TOOLS', () => {
   it('应该定义 create_scheduled_task 工具', () => {
-    expect(CRON_TOOLS.length).toBe(1)
+    expect(CRON_TOOLS.length).toBe(7)
     expect(CRON_TOOLS[0].function.name).toBe('create_scheduled_task')
   })
 
