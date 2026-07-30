@@ -327,6 +327,7 @@ export class CronEngine {
       schedule_cron: string | null
       schedule_interval: number | null
       schedule_at: number | null
+      end_time: number | null
       prompt: string
       tools: string | null
       output_format: string
@@ -357,6 +358,7 @@ export class CronEngine {
     schedule_cron: string | null
     schedule_interval: number | null
     schedule_at: number | null
+    end_time: number | null
     prompt: string
     tools: string | null
     output_format: string
@@ -400,6 +402,7 @@ export class CronEngine {
       tools: row.tools ? JSON.parse(row.tools) : undefined,
       outputFormat: (row.output_format as 'text' | 'voice') || 'text',
       enabled: row.enabled === 1,
+      endTime: row.end_time || undefined,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     }

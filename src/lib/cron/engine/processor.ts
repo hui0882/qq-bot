@@ -231,7 +231,12 @@ export function computeNextExecutionTime(task: Task, afterTime: number): number 
       if (!task.schedule.interval || task.schedule.interval <= 0) {
         return null
       }
-      return (afterSec + task.schedule.interval) * 1000
+      const nextTime = (afterSec + task.schedule.interval) * 1000
+      // 检查截止时间
+      if (task.endTime && nextTime > task.endTime) {
+        return null
+      }
+      return nextTime
 
     case 'cron':
       if (!task.schedule.expression) return null
