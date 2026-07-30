@@ -12,10 +12,11 @@ vi.mock('../store', () => ({
   updateTask: vi.fn(),
 }))
 
-vi.mock('../scheduler', () => ({
-  scheduler: {
-    refresh: vi.fn(),
-  },
+vi.mock('../engine', () => ({
+  getCronEngine: vi.fn(() => ({
+    unregisterTask: vi.fn(),
+    registerTask: vi.fn(),
+  })),
 }))
 
 vi.mock('../parser', () => ({
@@ -34,15 +35,15 @@ describe('CRON_TOOLS', () => {
     const params = tool.parameters
 
     expect(params.required).toContain('name')
-    expect(params.required).toContain('schedule')
+    expect(params.required).toContain('schedule_type')
+    expect(params.required).toContain('schedule_config')
     expect(params.required).toContain('prompt')
-    // repeat 不是必填参数（有默认值 true）
-    expect(params.required).not.toContain('repeat')
 
     expect(params.properties.name.type).toBe('string')
-    expect(params.properties.schedule.type).toBe('string')
+    expect(params.properties.schedule_type.type).toBe('string')
+    expect(params.properties.schedule_config.type).toBe('object')
     expect(params.properties.prompt.type).toBe('string')
-    expect(params.properties.repeat.type).toBe('boolean')
+    expect(params.properties.silent.type).toBe('boolean')
     expect(params.properties.outputFormat.type).toBe('string')
   })
 })
@@ -57,56 +58,33 @@ describe('executeCronToolCall', () => {
     expect(result).toContain('未知的定时任务工具')
   })
 
-  it('应该验证必需参数', async () => {
+  it('应该验证必需参数 - 缺少名称', async () => {
     const result = await executeCronToolCall('create_scheduled_task', {}, '123456')
     expect(result).toContain('缺少任务名称')
   })
 
-  it('应该验证 schedule 参数', async () => {
+  it('应该验证必需参数 - 缺少 schedule_type', async () => {
     const result = await executeCronToolCall('create_scheduled_task', {
       name: '测试',
     }, '123456')
-    expect(result).toContain('缺少调度规则')
+    expect(result).toContain('缺少任务类型')
   })
 
-  it('应该验证 prompt 参数', async () => {
+  it('应该验证必需参数 - 缺少 schedule_config', async () => {
     const result = await executeCronToolCall('create_scheduled_task', {
       name: '测试',
-      schedule: '0 9 * * *',
+      schedule_type: 'cron',
+    }, '123456')
+    expect(result).toContain('缺少调度配置')
+  })
+
+  it('应该验证必需参数 - 缺少 prompt', async () => {
+    const result = await executeCronToolCall('create_scheduled_task', {
+      name: '测试',
+      schedule_type: 'cron',
+      schedule_config: { time: '09:00' },
     }, '123456')
     expect(result).toContain('缺少任务提示词')
-  })
-
-  it('repeat 参数缺失时应默认 true', async () => {
-    const { createTask, getUserTaskCount, updateTask } = await import('../store')
-    const { parseSchedule, calculateNextRun } = await import('../parser')
-
-    vi.mocked(getUserTaskCount).mockReturnValue(0)
-    vi.mocked(parseSchedule).mockReturnValue({ type: 'cron', cron: '0 9 * * *' })
-    vi.mocked(calculateNextRun).mockReturnValue(Math.floor(Date.now() / 1000) + 3600)
-    vi.mocked(createTask).mockReturnValue({
-      id: 'test-id',
-      userId: '123456',
-      name: '测试任务',
-      scheduleRaw: '0 9 * * *',
-      prompt: '测试提示词',
-      repeat: true,
-      silent: false,
-      enabled: true,
-      runCount: 0,
-      retryCount: 0,
-      outputFormat: 'text',
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    } as any)
-
-    // 不传 repeat → 默认 true → 创建成功
-    const result = await executeCronToolCall('create_scheduled_task', {
-      name: '测试',
-      schedule: '0 9 * * *',
-      prompt: '测试提示词',
-    }, '123456')
-    expect(result).toContain('定时任务创建成功')
   })
 
   it('应该检查任务数量上限', async () => {
@@ -115,9 +93,9 @@ describe('executeCronToolCall', () => {
 
     const result = await executeCronToolCall('create_scheduled_task', {
       name: '测试',
-      schedule: '0 9 * * *',
+      schedule_type: 'cron',
+      schedule_config: { time: '09:00' },
       prompt: '测试提示词',
-      repeat: true,
     }, '123456')
 
     expect(result).toContain('达到上限')
@@ -125,7 +103,7 @@ describe('executeCronToolCall', () => {
 
   it('应该成功创建任务', async () => {
     const { createTask, getUserTaskCount, updateTask } = await import('../store')
-    const { scheduler } = await import('../scheduler')
+    const { getCronEngine } = await import('../engine')
     const { parseSchedule, calculateNextRun } = await import('../parser')
 
     vi.mocked(getUserTaskCount).mockReturnValue(0)
@@ -137,7 +115,6 @@ describe('executeCronToolCall', () => {
       name: '测试任务',
       scheduleRaw: '0 9 * * *',
       prompt: '测试提示词',
-      repeat: true,
       silent: false,
       enabled: true,
       runCount: 0,
@@ -149,15 +126,15 @@ describe('executeCronToolCall', () => {
 
     const result = await executeCronToolCall('create_scheduled_task', {
       name: '测试任务',
-      schedule: '0 9 * * *',
+      schedule_type: 'cron',
+      schedule_config: { time: '09:00' },
       prompt: '测试提示词',
-      repeat: true,
     }, '123456')
 
     expect(result).toContain('定时任务创建成功')
     expect(result).toContain('测试任务')
     expect(createTask).toHaveBeenCalled()
     expect(updateTask).toHaveBeenCalled()
-    expect(scheduler.refresh).toHaveBeenCalled()
+    expect(getCronEngine).toHaveBeenCalled()
   })
 })

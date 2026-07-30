@@ -64,7 +64,6 @@ describe('Cron Store', () => {
         name: '测试任务',
         schedule: '0 9 * * *',
         prompt: '测试提示词',
-        repeat: true,
       }
 
       // Mock getTask to return the created task
@@ -78,11 +77,11 @@ describe('Cron Store', () => {
         schedule_cron: null,
         schedule_interval: null,
         schedule_at: null,
+        end_time: null,
         prompt: '测试提示词',
         tools: null,
         output_format: 'text',
         enabled: 1,
-        repeat: 1,
         next_run_at: null,
         last_run_at: null,
         last_run_status: null,
@@ -101,7 +100,6 @@ describe('Cron Store', () => {
       expect(task.name).toBe('测试任务')
       expect(task.scheduleRaw).toBe('0 9 * * *')
       expect(task.prompt).toBe('测试提示词')
-      expect(task.repeat).toBe(true)
       expect(task.enabled).toBe(true)
       expect(task.runCount).toBe(0)
     })
@@ -119,11 +117,11 @@ describe('Cron Store', () => {
         schedule_cron: null,
         schedule_interval: null,
         schedule_at: null,
+        end_time: null,
         prompt: '测试提示词',
         tools: null,
         output_format: 'text',
         enabled: 1,
-        repeat: 1,
         next_run_at: null,
         last_run_at: null,
         last_run_status: null,
@@ -162,11 +160,11 @@ describe('Cron Store', () => {
           schedule_cron: null,
           schedule_interval: null,
           schedule_at: null,
+          end_time: null,
           prompt: '提示词2',
           tools: null,
           output_format: 'text',
           enabled: 1,
-          repeat: 1,
           next_run_at: null,
           last_run_at: null,
           last_run_status: null,
@@ -187,11 +185,11 @@ describe('Cron Store', () => {
           schedule_cron: null,
           schedule_interval: null,
           schedule_at: null,
+          end_time: null,
           prompt: '提示词1',
           tools: null,
           output_format: 'text',
           enabled: 1,
-          repeat: 1,
           next_run_at: null,
           last_run_at: null,
           last_run_status: null,
@@ -245,11 +243,11 @@ describe('Cron Store', () => {
           schedule_cron: null,
           schedule_interval: null,
           schedule_at: null,
+          end_time: null,
           prompt: '测试提示词',
           tools: null,
           output_format: 'text',
           enabled: 1,
-          repeat: 1,
           next_run_at: Date.now() - 1000,
           last_run_at: null,
           last_run_status: null,

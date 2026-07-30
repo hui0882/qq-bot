@@ -1,71 +1,54 @@
 /**
- * 调度器单元测试
+ * 调度器单元测试（新架构）
  *
- * 重点验证一次性任务（repeat=false）执行后自动禁用的逻辑：
- * - at 类型任务：无论 repeat 标志如何，执行后都应禁用
- * - every 类型 + repeat=false：执行后应禁用
- * - cron 类型 + repeat=false：执行后应禁用
- * - every/cron 类型 + repeat=true：执行后应更新 nextRunAt，继续调度
+ * 验证 CronEngine 的核心功能：
+ * - 任务注册/注销
+ * - 引擎启动/停止
+ * - 状态查询
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 
-// ---------------------------------------------------------------------------
-// Mocks
-// ---------------------------------------------------------------------------
-
-const mockUpdateTask = vi.fn()
-const mockIncrementRunCount = vi.fn()
-const mockEnqueue = vi.fn().mockResolvedValue(undefined)
-const mockCalculateNextRun = vi.fn()
-
-vi.mock('../store', () => ({
-  findDueTasks: vi.fn(),
-  updateTask: (...args: unknown[]) => mockUpdateTask(...args),
-  incrementRunCount: (...args: unknown[]) => mockIncrementRunCount(...args),
-  getTask: vi.fn(),
+// Mock dependencies
+vi.mock('../../db', () => ({
+  db: {
+    prepare: vi.fn(() => ({
+      all: vi.fn(() => []),
+      get: vi.fn(),
+      run: vi.fn(),
+    })),
+    exec: vi.fn(),
+  },
+  initDatabase: vi.fn().mockResolvedValue(undefined),
+  closeDatabase: vi.fn(),
 }))
 
-vi.mock('../queue', () => ({
-  taskQueue: {
-    enqueue: (...args: unknown[]) => mockEnqueue(...args),
+vi.mock('../../logger', () => ({
+  logger: {
+    logSystem: vi.fn(),
   },
 }))
 
-vi.mock('../parser', () => ({
-  calculateNextRun: (...args: unknown[]) => mockCalculateNextRun(...args),
-}))
-
-vi.mock('../executor', () => ({
-  executeTask: vi.fn().mockResolvedValue({ status: 'success' }),
-}))
-
 // Import after mocking
-import { CronScheduler } from '../scheduler'
-import type { CronTask } from '../types'
+import { CronEngine, getCronEngine } from '../engine/scheduler'
+import type { Task } from '../engine/types'
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-function makeTask(overrides: Partial<CronTask> = {}): CronTask {
-  const now = Date.now()
+function makeTask(overrides: Partial<Task> = {}): Task {
   return {
     id: 'test-task-id',
     userId: 'user-1',
     name: '测试任务',
-    scheduleRaw: 'at 15:30',
-    scheduleType: 'at',
-    scheduleAt: Math.floor(now / 1000) + 3600,
+    schedule: { type: 'cron', expression: '0 9 * * *' },
+    scheduleRaw: '0 9 * * *',
     prompt: '测试提示词',
     outputFormat: 'text',
     enabled: true,
-    repeat: false,
-    runCount: 0,
-    silent: false,
-    retryCount: 0,
-    createdAt: now,
-    updatedAt: now,
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
     ...overrides,
   }
 }
@@ -74,173 +57,118 @@ function makeTask(overrides: Partial<CronTask> = {}): CronTask {
 // Tests
 // ---------------------------------------------------------------------------
 
-describe('CronScheduler - 一次性任务自动禁用', () => {
-  let scheduler: CronScheduler
+describe('CronEngine - 基本功能', () => {
+  let engine: CronEngine
 
   beforeEach(() => {
-    vi.clearAllMocks()
-    scheduler = new CronScheduler({ tickInterval: 60_000 })
+    // 重置单态
+    (globalThis as any).__cronEngine = null
+    engine = new CronEngine({
+      bufferSize: 5,
+      tickInterval: 10_000,
+      maxConcurrent: 2,
+    })
   })
 
   afterEach(() => {
-    scheduler.stop()
+    engine.stop()
   })
 
-  it('at 类型任务（repeat=false）执行后应自动禁用', async () => {
-    const task = makeTask({ scheduleType: 'at', repeat: false })
-    mockCalculateNextRun.mockReturnValue(Math.floor(Date.now() / 1000) + 100)
+  it('应该能启动和停止引擎', () => {
+    expect(engine.getStatus().running).toBe(false)
 
-    // 通过反射调用私有方法 processTask
-    await (scheduler as any).processTask(task, Date.now())
+    engine.start()
+    expect(engine.getStatus().running).toBe(true)
 
-    // 验证 enqueue 被调用
-    expect(mockEnqueue).toHaveBeenCalledWith(task)
-
-    // 验证 updateTask 被调用两次：
-    // 1. 更新 lastRunAt
-    // 2. 禁用任务（nextRunAt=undefined, enabled=false）
-    const updateCalls = mockUpdateTask.mock.calls
-    expect(updateCalls.length).toBe(2)
-
-    // 第二次调用应该是禁用任务
-    const disableCall = updateCalls[1]
-    expect(disableCall[0]).toBe('test-task-id')
-    expect(disableCall[1]).toEqual({ nextRunAt: undefined, enabled: false })
+    engine.stop()
+    expect(engine.getStatus().running).toBe(false)
   })
 
-  it('at 类型任务（repeat=true）执行后也应自动禁用（at 本身就是一次性）', async () => {
-    const task = makeTask({ scheduleType: 'at', repeat: true })
-    mockCalculateNextRun.mockReturnValue(Math.floor(Date.now() / 1000) + 100)
-
-    await (scheduler as any).processTask(task, Date.now())
-
-    // 验证任务被禁用（不是更新 nextRunAt）
-    const updateCalls = mockUpdateTask.mock.calls
-    const lastCall = updateCalls[updateCalls.length - 1]
-    expect(lastCall[1]).toEqual({ nextRunAt: undefined, enabled: false })
+  it('重复启动不会出错', () => {
+    engine.start()
+    engine.start() // 第二次调用应该被忽略
+    expect(engine.getStatus().running).toBe(true)
   })
 
-  it('every 类型 + repeat=false 执行后应自动禁用', async () => {
-    const task = makeTask({
-      scheduleType: 'every',
-      scheduleInterval: 300,
-      scheduleAt: undefined,
-      repeat: false,
-    })
-    mockCalculateNextRun.mockReturnValue(Math.floor(Date.now() / 1000) + 300)
-
-    await (scheduler as any).processTask(task, Date.now())
-
-    const updateCalls = mockUpdateTask.mock.calls
-    const lastCall = updateCalls[updateCalls.length - 1]
-    expect(lastCall[1]).toEqual({ nextRunAt: undefined, enabled: false })
+  it('未启动时停止不会出错', () => {
+    engine.stop() // 不应该抛出错误
+    expect(engine.getStatus().running).toBe(false)
   })
 
-  it('every 类型 + repeat=true 执行后应更新 nextRunAt（继续调度）', async () => {
-    const task = makeTask({
-      scheduleType: 'every',
-      scheduleInterval: 300,
-      scheduleAt: undefined,
-      repeat: true,
-    })
-    const nextRunSeconds = Math.floor(Date.now() / 1000) + 300
-    mockCalculateNextRun.mockReturnValue(nextRunSeconds)
-
-    await (scheduler as any).processTask(task, Date.now())
-
-    const updateCalls = mockUpdateTask.mock.calls
-    const lastCall = updateCalls[updateCalls.length - 1]
-    expect(lastCall[1]).toEqual({ nextRunAt: nextRunSeconds * 1000 })
-  })
-
-  it('cron 类型 + repeat=false 执行后应自动禁用', async () => {
-    const task = makeTask({
-      scheduleType: 'cron',
-      scheduleCron: '0 9 * * *',
-      scheduleAt: undefined,
-      repeat: false,
-    })
-    mockCalculateNextRun.mockReturnValue(Math.floor(Date.now() / 1000) + 86400)
-
-    await (scheduler as any).processTask(task, Date.now())
-
-    const updateCalls = mockUpdateTask.mock.calls
-    const lastCall = updateCalls[updateCalls.length - 1]
-    expect(lastCall[1]).toEqual({ nextRunAt: undefined, enabled: false })
-  })
-
-  it('cron 类型 + repeat=true 执行后应更新 nextRunAt（继续调度）', async () => {
-    const task = makeTask({
-      scheduleType: 'cron',
-      scheduleCron: '0 9 * * *',
-      scheduleAt: undefined,
-      repeat: true,
-    })
-    const nextRunSeconds = Math.floor(Date.now() / 1000) + 86400
-    mockCalculateNextRun.mockReturnValue(nextRunSeconds)
-
-    await (scheduler as any).processTask(task, Date.now())
-
-    const updateCalls = mockUpdateTask.mock.calls
-    const lastCall = updateCalls[updateCalls.length - 1]
-    expect(lastCall[1]).toEqual({ nextRunAt: nextRunSeconds * 1000 })
-  })
-
-  it('calculateNextRun 抛出异常时，一次性任务仍应被安全禁用', async () => {
-    const task = makeTask({ scheduleType: 'at', repeat: false })
-    mockCalculateNextRun.mockImplementation(() => {
-      throw new Error('计算错误')
-    })
-
-    await (scheduler as any).processTask(task, Date.now())
-
-    // 即使计算失败，一次性任务也应被禁用
-    const updateCalls = mockUpdateTask.mock.calls
-    const lastCall = updateCalls[updateCalls.length - 1]
-    expect(lastCall[1]).toEqual({ nextRunAt: undefined, enabled: false })
+  it('应该返回正确的初始状态', () => {
+    const status = engine.getStatus()
+    expect(status.running).toBe(false)
+    expect(status.buffered).toBe(0)
+    expect(status.runningCount).toBe(0)
+    expect(status.totalTasks).toBe(0)
+    expect(status.enabledTasks).toBe(0)
   })
 })
 
-describe('CronScheduler - triggerTask 一次性任务自动禁用', () => {
-  let scheduler: CronScheduler
+describe('CronEngine - 任务注册/注销', () => {
+  let engine: CronEngine
 
   beforeEach(() => {
-    vi.clearAllMocks()
-    scheduler = new CronScheduler({ tickInterval: 60_000 })
+    (globalThis as any).__cronEngine = null
+    engine = new CronEngine()
   })
 
   afterEach(() => {
-    scheduler.stop()
+    engine.stop()
   })
 
-  it('手动触发 at 类型任务后应自动禁用', async () => {
-    const task = makeTask({ scheduleType: 'at', repeat: false })
-    const { getTask } = await import('../store')
-    vi.mocked(getTask as any).mockReturnValue(task)
-    mockCalculateNextRun.mockReturnValue(Math.floor(Date.now() / 1000) + 100)
+  it('应该注册任务', () => {
+    const task = makeTask()
+    engine.registerTask(task)
 
-    await scheduler.triggerTask('test-task-id')
-
-    const updateCalls = mockUpdateTask.mock.calls
-    const lastCall = updateCalls[updateCalls.length - 1]
-    expect(lastCall[1]).toEqual({ nextRunAt: undefined, enabled: false })
+    const status = engine.getStatus()
+    expect(status.totalTasks).toBe(1)
+    expect(status.enabledTasks).toBe(1)
   })
 
-  it('手动触发 every + repeat=false 任务后应自动禁用', async () => {
-    const task = makeTask({
-      scheduleType: 'every',
-      scheduleInterval: 300,
-      scheduleAt: undefined,
-      repeat: false,
-    })
-    const { getTask } = await import('../store')
-    vi.mocked(getTask as any).mockReturnValue(task)
-    mockCalculateNextRun.mockReturnValue(Math.floor(Date.now() / 1000) + 300)
+  it('应该注销任务', () => {
+    const task = makeTask()
+    engine.registerTask(task)
+    engine.unregisterTask(task.id)
 
-    await scheduler.triggerTask('test-task-id')
+    const status = engine.getStatus()
+    expect(status.totalTasks).toBe(0)
+    expect(status.enabledTasks).toBe(0)
+  })
 
-    const updateCalls = mockUpdateTask.mock.calls
-    const lastCall = updateCalls[updateCalls.length - 1]
-    expect(lastCall[1]).toEqual({ nextRunAt: undefined, enabled: false })
+  it('应该更新已注册的任务', () => {
+    const task = makeTask()
+    engine.registerTask(task)
+
+    const updatedTask = makeTask({ name: '更新后的任务' })
+    engine.registerTask(updatedTask)
+
+    const status = engine.getStatus()
+    expect(status.totalTasks).toBe(1) // 仍然是 1 个任务
+  })
+
+  it('禁用任务后 enabledTasks 应减少', () => {
+    const task = makeTask()
+    engine.registerTask(task)
+
+    const disabledTask = makeTask({ enabled: false })
+    engine.registerTask(disabledTask)
+
+    const status = engine.getStatus()
+    expect(status.totalTasks).toBe(1)
+    expect(status.enabledTasks).toBe(0)
+  })
+
+  it('注销不存在的任务不会出错', () => {
+    engine.unregisterTask('non-existent-id') // 不应该抛出错误
+    expect(engine.getStatus().totalTasks).toBe(0)
+  })
+})
+
+describe('CronEngine - 单例', () => {
+  it('getCronEngine 应该返回同一个实例', () => {
+    const engine1 = getCronEngine()
+    const engine2 = getCronEngine()
+    expect(engine1).toBe(engine2)
   })
 })

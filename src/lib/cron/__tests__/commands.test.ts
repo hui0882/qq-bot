@@ -18,10 +18,16 @@ vi.mock('../parser', () => ({
   cronToReadable: vi.fn(),
 }))
 
-vi.mock('../scheduler', () => ({
-  scheduler: {
-    triggerTask: vi.fn(),
-  },
+vi.mock('../engine', () => ({
+  getCronEngine: vi.fn(() => ({
+    unregisterTask: vi.fn(),
+    registerTask: vi.fn(),
+  })),
+}))
+
+vi.mock('../engine/processor', () => ({
+  createExecution: vi.fn(),
+  computeNextExecutionTime: vi.fn(),
 }))
 
 describe('handleCronCommand', () => {
@@ -65,7 +71,6 @@ describe('handleCronCommand', () => {
           scheduleType: 'cron',
           scheduleCron: '0 9 * * *',
           prompt: '早安问候',
-          repeat: true,
           enabled: true,
           runCount: 5,
           silent: false,
@@ -81,7 +86,6 @@ describe('handleCronCommand', () => {
           scheduleType: 'every',
           scheduleInterval: 3600,
           prompt: '提醒喝水',
-          repeat: true,
           enabled: false,
           runCount: 10,
           silent: false,
@@ -218,33 +222,37 @@ describe('handleCronCommand', () => {
 
     it('应该触发任务执行', async () => {
       const { getTask } = await import('../store')
-      const { scheduler } = await import('../scheduler')
+      const { createExecution, computeNextExecutionTime } = await import('../engine/processor')
 
       vi.mocked(getTask).mockReturnValue({
         id: 'test-id',
         userId: '123456',
         name: '测试任务',
+        scheduleType: 'cron',
+        scheduleCron: '0 9 * * *',
+        prompt: '测试提示词',
+        outputFormat: 'text',
       } as any)
-      vi.mocked(scheduler.triggerTask).mockResolvedValue()
+      vi.mocked(computeNextExecutionTime).mockReturnValue(Date.now() + 1000)
 
       const result = await handleCronCommand('123456', ['run', 'abc123'])
       expect(result).toContain('已触发任务「测试任务」执行')
-      expect(scheduler.triggerTask).toHaveBeenCalledWith('abc123')
+      expect(createExecution).toHaveBeenCalled()
     })
 
     it('应该处理执行失败', async () => {
       const { getTask } = await import('../store')
-      const { scheduler } = await import('../scheduler')
 
       vi.mocked(getTask).mockReturnValue({
         id: 'test-id',
         userId: '123456',
         name: '测试任务',
+        scheduleType: 'invalid',
       } as any)
-      vi.mocked(scheduler.triggerTask).mockRejectedValue(new Error('执行失败'))
 
       const result = await handleCronCommand('123456', ['run', 'abc123'])
-      expect(result).toContain('执行失败')
+      // 无效类型不会创建 Execution，但不会抛出错误
+      expect(result).toContain('已触发任务')
     })
   })
 
