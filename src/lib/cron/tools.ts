@@ -271,7 +271,6 @@ export async function executeCronToolCall(
           name: taskName,
           schedule,
           prompt,
-          repeat: repeatValue,
           silent: silent ?? false,
           outputFormat: fmt,
           tools,
@@ -440,7 +439,7 @@ async function createScheduledTask(
     // 刷新调度器，使新任务立即生效
     scheduler.refresh()
 
-    const repeatText = task.repeat ? '重复执行' : '一次性'
+    const repeatText = task.scheduleType === 'at' ? '一次性' : '重复执行'
     const silentText = task.silent ? '，静默模式' : ''
 
     return `定时任务创建成功！
@@ -471,7 +470,7 @@ async function listScheduledTasks(userId: string): Promise<string> {
 
   tasks.forEach((task, index) => {
     const statusIcon = task.enabled ? '✅' : '⏸️'
-    const repeatIcon = task.repeat ? '🔁' : '1️⃣'
+    const repeatIcon = task.scheduleType === 'at' ? '1️⃣' : '🔁'
     lines.push(`${index + 1}. ${statusIcon} ${repeatIcon} ${task.name}`)
     lines.push(`   ⏰ ${formatScheduleReadable(task)}`)
     lines.push(`   📝 ${task.prompt.slice(0, 40)}${task.prompt.length > 40 ? '...' : ''}`)
@@ -509,7 +508,7 @@ async function getScheduledTaskDetail(userId: string, taskIdOrPrefix: string): P
   lines.push(`🆔 任务 ID：${task.id}`)
   lines.push(`⏰ 调度规则：${formatScheduleReadable(task)}`)
   lines.push(`📝 提示词：${task.prompt}`)
-  lines.push(`🔁 重复执行：${task.repeat ? '是' : '否'}`)
+  lines.push(`🔁 重复执行：${task.scheduleType === 'at' ? '否' : '是'}`)
   lines.push(`🔕 静默模式：${task.silent ? '是' : '否'}`)
   lines.push(`📤 输出格式：${task.outputFormat}`)
   lines.push(`📊 状态：${task.enabled ? '✅ 启用' : '⏸️ 暂停'}`)
@@ -695,7 +694,7 @@ async function resumeScheduledTask(userId: string, taskIdOrPrefix: string): Prom
   // 对于一次性任务（repeat=false），如果已经执行过，恢复时需要重新计算下次执行时间
   const updates: Record<string, any> = { enabled: true }
 
-  if (!task.repeat && task.runCount > 0) {
+  if (task.scheduleType === 'at' && task.runCount > 0) {
     // 一次性任务已执行过，需要重新计算下次执行时间
     try {
       const nextRunSeconds = calculateNextRun(task)

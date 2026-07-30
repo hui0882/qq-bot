@@ -20,11 +20,11 @@ interface CronTaskRow {
   schedule_cron: string | null
   schedule_interval: number | null
   schedule_at: number | null
+  end_time: number | null
   prompt: string
   tools: string | null
   output_format: string
   enabled: number
-  repeat: number
   next_run_at: number | null
   last_run_at: number | null
   last_run_status: string | null
@@ -61,11 +61,11 @@ function rowToTask(row: CronTaskRow): CronTask {
     scheduleCron: row.schedule_cron || undefined,
     scheduleInterval: row.schedule_interval || undefined,
     scheduleAt: row.schedule_at || undefined,
+    endTime: row.end_time || undefined,
     prompt: row.prompt,
     tools: row.tools ? JSON.parse(row.tools) : undefined,
     outputFormat: (row.output_format as OutputFormat) || 'text',
     enabled: row.enabled === 1,
-    repeat: row.repeat === 1,
     nextRunAt: row.next_run_at || undefined,
     lastRunAt: row.last_run_at || undefined,
     lastRunStatus: (row.last_run_status as TaskStatus) || undefined,
@@ -109,11 +109,11 @@ export function initCronTables(): void {
       schedule_cron TEXT,
       schedule_interval INTEGER,
       schedule_at INTEGER,
+      end_time INTEGER,
       prompt TEXT NOT NULL,
       tools TEXT,
       output_format TEXT DEFAULT 'text',
       enabled INTEGER DEFAULT 1,
-      repeat INTEGER DEFAULT 1,
       next_run_at INTEGER,
       last_run_at INTEGER,
       last_run_status TEXT,
@@ -163,8 +163,8 @@ export function createTask(params: CreateTaskParams): CronTask {
   db.prepare(`
     INSERT INTO cron_tasks (
       id, user_id, name, description, schedule_raw, schedule_type,
-      prompt, tools, output_format, repeat, silent, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      prompt, tools, output_format, silent, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     id,
     params.userId,
@@ -175,7 +175,6 @@ export function createTask(params: CreateTaskParams): CronTask {
     params.prompt,
     params.tools ? JSON.stringify(params.tools) : null,
     params.outputFormat || 'text',
-    params.repeat !== false ? 1 : 0,
     params.silent ? 1 : 0,
     now,
     now
@@ -270,9 +269,9 @@ export function updateTask(id: string, updates: Partial<CronTask>): void {
     fields.push('enabled = ?')
     values.push(updates.enabled ? 1 : 0)
   }
-  if (updates.repeat !== undefined) {
-    fields.push('repeat = ?')
-    values.push(updates.repeat ? 1 : 0)
+  if (updates.endTime !== undefined) {
+    fields.push('end_time = ?')
+    values.push(updates.endTime || null)
   }
   if (updates.nextRunAt !== undefined) {
     fields.push('next_run_at = ?')

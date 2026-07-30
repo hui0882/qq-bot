@@ -95,7 +95,7 @@ async function handleList(userId: string): Promise<string> {
     lines.push(`${index + 1}. ${task.name} [ID: ${task.id.slice(0, 6)}]`)
     lines.push(`   ⏰ ${formatSchedule(task)}`)
     lines.push(`   📝 ${task.description || task.prompt.slice(0, 50)}`)
-    lines.push(`   🔄 重复：${task.repeat ? '是' : '否'} | ${task.enabled ? '✅ 状态：启用' : '⏸️ 状态：暂停'}`)
+    lines.push(`   🔄 类型：${task.scheduleType === 'at' ? '单次' : '循环'} | ${task.enabled ? '✅ 状态：启用' : '⏸️ 状态：暂停'}`)
 
     const runInfo = `   📊 已执行：${task.runCount}次`
     if (task.lastRunAt) {
