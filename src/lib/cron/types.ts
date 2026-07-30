@@ -129,6 +129,10 @@ export interface CreateTaskParams {
   silent?: boolean;
   /** 输出格式（默认 'text'） */
   outputFormat?: OutputFormat;
+  /** 调度类型（AI 工具新参数） */
+  scheduleType?: string;
+  /** 调度配置（AI 工具新参数） */
+  scheduleConfig?: Record<string, any>;
 }
 
 /**

@@ -18,49 +18,32 @@ export const CRON_SYSTEM_PROMPT = `## 定时任务管理
 
 ### 创建定时任务
 当用户要求创建定时任务时：
-1. 解析用户意图，提取：任务名称、执行时间/频率、任务内容
-2. **重要：区分单次任务和重复任务**
-   - 单次任务：用户说"N分钟后提醒我"、"明天早上8点叫我"、"提醒我一次" → 使用 at 格式，repeat=false
-   - 重复任务：用户说"每天早上8点"、"每隔10分钟"、"每周一" → 使用 cron 或 every 格式，repeat=true
-3. 生成调度规则：
-   - **单次执行**（指定时间执行一次）：
-     - "N分钟后提醒我" → schedule = "at {当前时间+N分钟}"，repeat=false
-     - "明天早上8点" → schedule = "at {明天日期}T08:00"，repeat=false
-     - "下午3点半" → schedule = "at 15:30"，repeat=false
-   - **循环执行**（重复执行）：
-     - 每天 X 点 → schedule = "0 {分钟} {小时} * * *"，repeat=true
-     - 每周X Y 点 → schedule = "0 {分钟} {小时} * * {星期几}"，repeat=true
-     - 每隔 N 分钟 → schedule = "every {N}m"，repeat=true
-     - 每隔 N 小时 → schedule = "every {N}h"，repeat=true
-     - 每隔 N 天 → schedule = "every {N}d"，repeat=true
-4. 调用 create_scheduled_task 工具
-5. 确认创建成功，告知用户任务详情
+1. 解析用户意图，提取：任务名称、执行类型、执行时间/频率、任务内容
+2. 自动判断任务类型：
+   - 单次执行（oneTime）：用户说"N分钟后提醒我"、"明天早上8点叫我"、"提醒我一次"
+   - 循环执行（cron）：用户说"每天早上8点"、"每周一"、"每月1号"
+   - 间隔执行（interval）：用户说"每隔10分钟"、"每2小时"
+3. 如果用户意图模糊（如只说"定时提醒我"未说时间或类型），必须追问确认
+4. 创建前必须得到用户明确确认，不得自行猜测执行
+5. 调用 create_scheduled_task 工具
+6. 确认创建成功，告知用户任务详情
 
-### 查看定时任务
-当用户要求查看/列出定时任务时：
-- 调用 list_scheduled_tasks 工具获取任务列表
-- 如果用户想查看某个任务的详细信息和日志，调用 get_scheduled_task_detail
+### 时间处理规则
+- 每次请求时会附带当前系统时间：[系统时间: YYYY-MM-DD HH:mm:ss]
+- 所有时间计算基于此系统时间
+- 单次任务的时间如果已过，询问用户是否调整为明天
 
-### 修改定时任务
-当用户要求修改/更新定时任务时：
-- 先调用 list_scheduled_tasks 让用户确认要修改的任务
-- 调用 update_scheduled_task 进行修改（可修改 name/schedule/prompt/repeat/enabled/silent）
-
-### 删除定时任务
-当用户要求删除定时任务时：
-- 先调用 list_scheduled_tasks 让用户确认要删除的任务
-- 调用 delete_scheduled_task 进行删除
-
-### 暂停/恢复定时任务
-当用户要求暂停/恢复定时任务时：
-- 先调用 list_scheduled_tasks 让用户确认任务
-- 调用 pause_scheduled_task 或 resume_scheduled_task
+### 其他操作
+- 查看任务：调用 list_scheduled_tasks
+- 修改任务：调用 update_scheduled_task
+- 删除任务：调用 delete_scheduled_task
+- 暂停/恢复：调用 pause_scheduled_task / resume_scheduled_task
 
 注意：
 - 每个用户最多 10 个定时任务
-- 如果时间已过，自动调整为明天
-- 单次任务（at类型）执行后会自动标记为"已执行完成"
-- 循环任务执行后会自动计算下次执行时间`
+- 单次任务（oneTime）执行后会自动标记为"执行完成"
+- 循环任务（cron）和间隔任务（interval）执行后会自动计算下次执行时间
+- 间隔任务可设置截止时间，到了截止时间自动停止`
 
 // ============ 工具定义（OpenAI 格式） ============
 
@@ -77,33 +60,44 @@ export const CRON_TOOLS: ToolDefinition[] = [
             type: 'string',
             description: '任务名称',
           },
-          schedule: {
+          schedule_type: {
             type: 'string',
-            description:
-              '调度规则，支持三种格式：at（一次性，如 "at 15:30"）、every（间隔，如 "every 5m"）、cron（表达式，如 "0 9 * * *"）',
+            description: '任务类型：oneTime（单次执行）、cron（循环执行，按星期/月份/日期）、interval（间隔执行）',
+            enum: ['oneTime', 'cron', 'interval'],
+          },
+          schedule_config: {
+            type: 'object',
+            description: '调度配置，根据类型不同包含不同字段',
+            properties: {
+              at: { type: 'string', description: '[oneTime] 执行时间，格式 "YYYY-MM-DDTHH:mm" 或 "HH:mm"' },
+              time: { type: 'string', description: '[cron] 执行时间，格式 "HH:mm"' },
+              weekdays: { type: 'array', items: { type: 'number' }, description: '[cron] 星期几，1=周一~7=周日' },
+              months: { type: 'array', items: { type: 'number' }, description: '[cron] 月份，1-12' },
+              days: { type: 'array', items: { type: 'number' }, description: '[cron] 日期，1-31' },
+              first_run: { type: 'string', description: '[interval] 首次执行时间' },
+              interval_value: { type: 'number', description: '[interval] 间隔数值' },
+              interval_unit: { type: 'string', description: '[interval] 间隔单位：m(分钟)/h(小时)/d(天)' },
+              end_time: { type: 'string', description: '[interval] 截止时间（选填），格式 "YYYY-MM-DDTHH:mm"' },
+            },
           },
           prompt: {
             type: 'string',
             description: '任务提示词，执行时发送给 AI 的内容',
           },
-          repeat: {
+          silent: {
             type: 'boolean',
-            description: '是否重复执行，false 则为一次性任务。不传则默认为 true（重复执行）',
+            description: '是否静默模式，true 时只发送状态提示不发送 AI 回复',
           },
           outputFormat: {
             type: 'string',
             description: '输出格式："text"（文本）或 "voice"（语音）。不传则默认为 "text"',
-          },
-          silent: {
-            type: 'boolean',
-            description: '是否静默模式，true 时只发送状态提示不发送 AI 回复',
           },
           tools: {
             type: 'array',
             description: '可用工具列表（字符串数组），限制任务执行时可调用的工具',
           },
         },
-        required: ['name', 'schedule', 'prompt'],
+        required: ['name', 'schedule_type', 'schedule_config', 'prompt'],
       },
     },
   },
@@ -140,7 +134,7 @@ export const CRON_TOOLS: ToolDefinition[] = [
     type: 'function',
     function: {
       name: 'update_scheduled_task',
-      description: '更新指定定时任务的属性（名称、调度规则、提示词、是否重复等）。',
+      description: '更新指定定时任务的属性（名称、调度规则、提示词等）。',
       parameters: {
         type: 'object',
         properties: {
@@ -159,10 +153,6 @@ export const CRON_TOOLS: ToolDefinition[] = [
           prompt: {
             type: 'string',
             description: '新的任务提示词（可选）',
-          },
-          repeat: {
-            type: 'boolean',
-            description: '是否重复执行（可选）',
           },
           silent: {
             type: 'boolean',
@@ -247,20 +237,20 @@ export async function executeCronToolCall(
 ): Promise<string> {
   switch (name) {
     case 'create_scheduled_task': {
-      const { name: taskName, schedule, prompt, repeat, silent, tools, outputFormat } = args
+      const { name: taskName, schedule_type, schedule_config, prompt, silent, tools, outputFormat } = args
 
       if (!taskName || typeof taskName !== 'string') {
         return '创建失败：缺少任务名称'
       }
-      if (!schedule || typeof schedule !== 'string') {
-        return '创建失败：缺少调度规则'
+      if (!schedule_type || typeof schedule_type !== 'string') {
+        return '创建失败：缺少任务类型'
+      }
+      if (!schedule_config || typeof schedule_config !== 'object') {
+        return '创建失败：缺少调度配置'
       }
       if (!prompt || typeof prompt !== 'string') {
         return '创建失败：缺少任务提示词'
       }
-
-      // repeat 参数：接受任何 truthy/falsy 值，默认 true（兼容 AI 漏传或传字符串的情况）
-      const repeatValue = repeat === undefined || repeat === null ? true : Boolean(repeat)
 
       // outputFormat 校验：只允许 'text' 或 'voice'，默认 'text'
       const fmt = outputFormat === 'voice' ? 'voice' : 'text'
@@ -269,11 +259,13 @@ export async function executeCronToolCall(
         {
           userId,
           name: taskName,
-          schedule,
+          schedule: '', // 将由 schedule_type + schedule_config 构建
           prompt,
           silent: silent ?? false,
           outputFormat: fmt,
           tools,
+          scheduleType: schedule_type,
+          scheduleConfig: schedule_config,
         },
         userId,
       )
@@ -410,11 +402,53 @@ async function createScheduledTask(
   }
 
   try {
+    // 根据 schedule_type + schedule_config 构建调度规则
+    const scheduleType = args.scheduleType || (args as any).schedule_type
+    const scheduleConfig = args.scheduleConfig || (args as any).schedule_config
+    const endTime = args.endTime
+    let schedule: string
+    let endTimeValue: number | undefined
+
+    if (scheduleType && scheduleConfig) {
+      // 新参数结构：schedule_type + schedule_config
+      switch (scheduleType) {
+        case 'oneTime':
+          schedule = `at ${scheduleConfig.at}`
+          break
+        case 'cron': {
+          // 构建 cron 表达式
+          const { time, weekdays, months, days } = scheduleConfig
+          if (time) {
+            const [hour, minute] = time.split(':')
+            const cronExpr = buildCronExpression({ hour, minute, weekdays, months, days })
+            schedule = cronExpr
+          } else {
+            schedule = `at ${scheduleConfig.at || '08:00'}`
+          }
+          break
+        }
+        case 'interval': {
+          const { first_run, interval_value, interval_unit, end_time } = scheduleConfig
+          schedule = `at ${first_run || '08:00'}`  // 首次执行用 at
+          if (end_time) {
+            endTimeValue = Math.floor(new Date(end_time).getTime() / 1000)
+          }
+          // interval 信息存储在 description 或单独处理
+          break
+        }
+        default:
+          return `创建失败：不支持的任务类型 "${scheduleType}"`
+      }
+    } else {
+      // 旧参数结构：schedule 字符串
+      schedule = args.schedule
+    }
+
     // 解析调度规则
-    const parsed = parseSchedule(args.schedule)
+    const parsed = parseSchedule(schedule)
 
     // 创建任务
-    const task = createTask(args)
+    const task = createTask({ ...args, schedule })
 
     // 更新任务的调度信息
     const updates: Record<string, any> = {
@@ -427,6 +461,10 @@ async function createScheduledTask(
       updates.scheduleInterval = parsed.interval
     } else if (parsed.type === 'at' && parsed.at) {
       updates.scheduleAt = parsed.at
+    }
+
+    if (endTimeValue || endTime) {
+      updates.endTime = endTimeValue || endTime
     }
 
     // 计算下次执行时间
@@ -796,4 +834,40 @@ export function parsedToScheduleConfig(parsed: { type: string; cron?: string; in
     default:
       return { type: 'cron', expression: parsed.cron }
   }
+}
+
+/**
+ * 根据 AI 提供的参数构建 cron 表达式
+ */
+function buildCronExpression(config: {
+  hour?: string
+  minute?: string
+  weekdays?: number[]
+  months?: number[]
+  days?: number[]
+}): string {
+  const hour = config.hour || '8'
+  const minute = config.minute || '0'
+
+  // 星期字段
+  let dow = '*'
+  if (config.weekdays && config.weekdays.length > 0) {
+    // 转换：AI 使用 1=周一~7=周日，cron 使用 0=周日, 1=周一~6=周六
+    const cronDays = config.weekdays.map(d => d % 7)
+    dow = cronDays.join(',')
+  }
+
+  // 月份字段
+  let month = '*'
+  if (config.months && config.months.length > 0) {
+    month = config.months.join(',')
+  }
+
+  // 日期字段
+  let dom = '*'
+  if (config.days && config.days.length > 0) {
+    dom = config.days.join(',')
+  }
+
+  return `${minute} ${hour} ${dom} ${month} ${dow}`
 }
