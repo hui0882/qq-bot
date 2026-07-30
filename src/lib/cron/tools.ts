@@ -8,7 +8,6 @@
 import type { ToolDefinition } from '@/lib/ai/types'
 import type { CreateTaskParams, CronTask } from './types'
 import { createTask, getUserTaskCount, updateTask, getUserTasks, getTask, deleteTask, getTaskLogs } from './store'
-import { scheduler } from './scheduler'
 import { parseSchedule, calculateNextRun, cronToReadable } from './parser'
 import { logger } from '../logger'
 
@@ -474,8 +473,9 @@ async function createScheduledTask(
     // 更新任务
     updateTask(task.id, updates)
 
-    // 刷新调度器，使新任务立即生效
-    scheduler.refresh()
+    // 刷新引擎，使新任务立即生效
+    const engine = getCronEngine()
+    engine.unregisterTask(task.id)
 
     const repeatText = task.scheduleType === 'at' ? '一次性' : '重复执行'
     const silentText = task.silent ? '，静默模式' : ''
@@ -662,7 +662,10 @@ async function updateScheduledTask(
     }
 
     updateTask(task.id, updates)
-    scheduler.refresh()
+
+    // 刷新引擎，使更新立即生效
+    const engine = getCronEngine()
+    engine.unregisterTask(task.id)
 
     logger.logSystem('定时任务已更新', {
       taskId: task.id,
@@ -754,7 +757,10 @@ async function resumeScheduledTask(userId: string, taskIdOrPrefix: string): Prom
   }
 
   updateTask(task.id, updates)
-  scheduler.refresh()
+
+  // 刷新引擎，使恢复立即生效
+  const engine = getCronEngine()
+  engine.unregisterTask(task.id)
 
   logger.logSystem('定时任务已恢复', { taskId: task.id, taskName: task.name })
 

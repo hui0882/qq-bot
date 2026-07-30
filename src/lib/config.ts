@@ -171,11 +171,12 @@ class ConfigManager {
     try {
       // 等待一小段时间确保其他模块初始化完成
       await new Promise(resolve => setTimeout(resolve, 500))
-      const { scheduler } = await import('@/lib/cron/scheduler')
-      scheduler.start()
-      console.log('[Config] 定时任务调度器已启动')
+      const { getCronEngine } = await import('@/lib/cron/engine')
+      const engine = getCronEngine()
+      engine.start()
+      console.log('[Config] 定时任务引擎已启动')
     } catch (err) {
-      console.error('[Config] 启动定时任务调度器失败:', err)
+      console.error('[Config] 启动定时任务引擎失败:', err)
     }
   }
 

@@ -187,3 +187,20 @@ export interface EngineStatus {
   /** 启用任务数 */
   enabledTasks: number
 }
+
+/**
+ * 执行结果接口
+ * 任务执行完成后的返回结果
+ */
+export interface ExecutionResult {
+  /** 执行状态 */
+  status: 'success' | 'failed' | 'timeout'
+  /** 执行结果内容（成功时） */
+  result?: string
+  /** 错误信息（失败时） */
+  error?: string
+  /** 执行耗时（毫秒） */
+  duration: number
+  /** 尝试次数 */
+  attempts: number
+}
