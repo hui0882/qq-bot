@@ -69,5 +69,9 @@ data/napcat.db-shm
 # Internal dev docs (not for GitHub)
 docs/dev/
 
+# Superpowers specs and plans (local only)
+docs/superpowers/
+.superpowers/
+
 # Local change records (not for GitHub)
 changes/
