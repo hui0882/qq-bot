@@ -44,7 +44,11 @@ export async function processAIMessage(
     ? { role: 'system' as const, content: config.customSystemPrompt }
     : buildSystemPrompt(replyType, globalConfig.systemPrompt)
 
-  const systemPrompt = basePrompt
+  // 注入当前系统时间到 system prompt
+  const systemPrompt = {
+    ...basePrompt,
+    content: basePrompt.content + `\n\n[系统时间: ${new Date().toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' })}]`,
+  }
 
   // 4. 使用 Memory Manager 构建上下文
   const userIdStr = String(userId)
