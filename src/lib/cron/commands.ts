@@ -7,7 +7,9 @@
 import type { CronTask, CronLog } from './types'
 import { getUserTasks, getTask, deleteTask, updateTask, getTaskLogs } from './store'
 import { cronToReadable } from './parser'
-import { scheduler } from './scheduler'
+import { getCronEngine } from './engine'
+import { createExecution, computeNextExecutionTime } from './engine/processor'
+import type { Task } from './engine/types'
 
 // ============ 命令路由 ============
 
@@ -189,7 +191,40 @@ async function handleRun(userId: string, taskId: string): Promise<string> {
   }
 
   try {
-    await scheduler.triggerTask(taskId)
+    // 使用新引擎创建即时执行
+    const engine = getCronEngine()
+    const nextTime = computeNextExecutionTime({
+      id: task.id,
+      userId: task.userId,
+      name: task.name,
+      description: task.description,
+      schedule: { type: task.scheduleType === 'at' ? 'oneTime' : task.scheduleType === 'every' ? 'interval' : 'cron', at: task.scheduleAt, interval: task.scheduleInterval, expression: task.scheduleCron },
+      scheduleRaw: task.scheduleRaw,
+      prompt: task.prompt,
+      tools: task.tools,
+      outputFormat: task.outputFormat,
+      enabled: true,
+      endTime: task.endTime,
+      createdAt: task.createdAt,
+      updatedAt: task.updatedAt,
+    }, Date.now())
+
+    if (nextTime) {
+      createExecution({
+        taskId: task.id,
+        userId: task.userId,
+        scheduledAt: Date.now(), // 立即执行
+        status: 'pending',
+        scheduleType: task.scheduleType === 'at' ? 'oneTime' : task.scheduleType === 'every' ? 'interval' : 'cron',
+        taskName: task.name,
+        prompt: task.prompt,
+        tools: task.tools ? JSON.stringify(task.tools) : undefined,
+        outputFormat: task.outputFormat,
+        attempts: 0,
+        maxRetries: 2,
+      })
+    }
+
     return `🚀 已触发任务「${task.name}」执行\n稍后将收到执行结果`
   } catch (err) {
     return `❌ 执行失败: ${err instanceof Error ? err.message : String(err)}`

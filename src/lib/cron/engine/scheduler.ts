@@ -21,7 +21,7 @@ import {
   getExecution,
 } from './processor'
 import { recover, fillBuffer } from './recovery'
-import { executeTask as executeLegacyTask } from '../executor'
+import { executeTask as executeLegacyTask } from './executor'
 import { db } from '../../db'
 import { logger } from '../../logger'
 
@@ -193,9 +193,7 @@ export class CronEngine {
   /**
    * 执行 Execution
    *
-   * 1. 构建 CronTask 兼容对象
-   * 2. 调用 executor 执行
-   * 3. 更新执行状态
+   * 调用 executor 执行 TaskExecution，然后更新执行状态。
    *
    * @param exec - 要执行的 Execution
    */
@@ -203,11 +201,8 @@ export class CronEngine {
     const startTime = Date.now()
 
     try {
-      // 构建 CronTask 兼容对象（用于 executor）
-      const cronTask = this.buildCronTask(exec)
-
-      // 执行
-      const result = await executeLegacyTask(cronTask)
+      // 直接执行 TaskExecution
+      const result = await executeLegacyTask(exec)
 
       const duration = Date.now() - startTime
 
@@ -236,50 +231,6 @@ export class CronEngine {
         taskId: exec.taskId,
         error: errorMessage,
       })
-    }
-  }
-
-  /**
-   * 构建 CronTask 兼容对象
-   *
-   * 将 Execution 转换为 executor 所需的 CronTask 格式。
-   */
-  private buildCronTask(exec: TaskExecution): import('../types').CronTask {
-    return {
-      id: exec.taskId,
-      userId: exec.userId,
-      name: exec.taskName,
-      description: undefined,
-      scheduleRaw: '',
-      scheduleType: this.mapScheduleType(exec.scheduleType),
-      scheduleCron: undefined,
-      scheduleInterval: undefined,
-      scheduleAt: undefined,
-      prompt: exec.prompt,
-      tools: exec.tools ? JSON.parse(exec.tools) : undefined,
-      outputFormat: exec.outputFormat,
-      enabled: true,
-      nextRunAt: undefined,
-      lastRunAt: undefined,
-      lastRunStatus: undefined,
-      lastRunError: undefined,
-      runCount: 0,
-      silent: false,
-      retryCount: 0,
-      createdAt: exec.createdAt,
-      updatedAt: Date.now(),
-    }
-  }
-
-  /**
-   * 映射调度类型
-   */
-  private mapScheduleType(type: string): import('../types').ScheduleType {
-    switch (type) {
-      case 'oneTime': return 'at'
-      case 'interval': return 'every'
-      case 'cron': return 'cron'
-      default: return 'cron'
     }
   }
 
