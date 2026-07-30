@@ -38,6 +38,7 @@ export async function GET(request: Request) {
         schedule_cron: string | null
         schedule_interval: number | null
         schedule_at: number | null
+        end_time: number | null
         prompt: string
         tools: string | null
         output_format: string
@@ -60,6 +61,7 @@ export async function GET(request: Request) {
         schedule_cron: string | null
         schedule_interval: number | null
         schedule_at: number | null
+        end_time: number | null
         prompt: string
         tools: string | null
         output_format: string
@@ -117,9 +119,9 @@ export async function POST(request: Request) {
     db.prepare(`
       INSERT INTO cron_tasks (
         id, user_id, name, description, schedule_raw, schedule_type,
-        schedule_cron, schedule_interval, schedule_at,
+        schedule_cron, schedule_interval, schedule_at, end_time,
         prompt, tools, output_format, enabled, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
     `).run(
       taskId,
       userId,
@@ -130,6 +132,7 @@ export async function POST(request: Request) {
       parsed.expression || null,
       parsed.interval || null,
       parsed.at ? parsed.at * 1000 : null,
+      body.endTime || null,
       prompt,
       tools ? JSON.stringify(tools) : null,
       outputFormat || 'text',
@@ -200,6 +203,7 @@ function rowToTask(row: {
   schedule_cron: string | null
   schedule_interval: number | null
   schedule_at: number | null
+  end_time: number | null
   prompt: string
   tools: string | null
   output_format: string
@@ -233,6 +237,7 @@ function rowToTask(row: {
     tools: row.tools ? JSON.parse(row.tools) : undefined,
     outputFormat: (row.output_format as 'text' | 'voice') || 'text',
     enabled: row.enabled === 1,
+    endTime: row.end_time || undefined,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }
