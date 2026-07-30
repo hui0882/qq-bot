@@ -176,10 +176,8 @@ export class CronScheduler {
       // calculateNextRun 返回秒级时间戳，转为毫秒后更新
       const nextRunAtMs = nextRunSeconds * 1000
 
-      // 一次性任务判断：
-      // - at 类型本身就是一次性任务（指定时间执行一次），无论 repeat 标志如何
-      // - every/cron 类型且 repeat=false 时，也是一次性任务，执行后禁用
-      const isOneTime = task.scheduleType === 'at' || !task.repeat
+      // 一次性任务判断：at 类型本身就是一次性任务
+      const isOneTime = task.scheduleType === 'at'
 
       if (isOneTime) {
         updateTask(task.id, {
@@ -190,7 +188,6 @@ export class CronScheduler {
           taskId: task.id,
           taskName: task.name,
           scheduleType: task.scheduleType,
-          repeat: task.repeat,
         })
       } else {
         updateTask(task.id, { nextRunAt: nextRunAtMs })
@@ -207,7 +204,7 @@ export class CronScheduler {
         error: err instanceof Error ? err.message : String(err),
       })
       // 计算失败时，对于一次性任务仍要禁用，防止无限重试
-      const isOneTime = task.scheduleType === 'at' || !task.repeat
+      const isOneTime = task.scheduleType === 'at'
       if (isOneTime) {
         updateTask(task.id, {
           nextRunAt: undefined,
@@ -272,8 +269,8 @@ export class CronScheduler {
       const nextRunSeconds = calculateNextRun(updatedTask)
       const nextRunAtMs = nextRunSeconds * 1000
 
-      // 一次性任务判断：at 类型本身是一次性；every/cron 且 repeat=false 也是一次性
-      const isOneTime = task.scheduleType === 'at' || !task.repeat
+      // 一次性任务判断：at 类型本身是一次性
+      const isOneTime = task.scheduleType === 'at'
 
       if (isOneTime) {
         updateTask(task.id, {

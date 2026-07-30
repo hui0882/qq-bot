@@ -51,6 +51,8 @@ export interface CronTask {
   scheduleInterval?: number;
   /** 定时执行时间戳（当 scheduleType 为 'at' 时使用） */
   scheduleAt?: number;
+  /** 截止时间戳（当 scheduleType 为 'interval' 时可选） */
+  endTime?: number;
   /** 任务提示词（发送给 AI 的内容） */
   prompt: string;
   /** 允许使用的工具列表（可选） */
@@ -59,8 +61,6 @@ export interface CronTask {
   outputFormat: OutputFormat;
   /** 是否启用 */
   enabled: boolean;
-  /** 是否重复执行（一次性任务执行后自动禁用） */
-  repeat: boolean;
   /** 下次执行时间戳 */
   nextRunAt?: number;
   /** 上次执行时间戳 */
@@ -123,8 +123,8 @@ export interface CreateTaskParams {
   prompt: string;
   /** 允许使用的工具列表（可选） */
   tools?: string[];
-  /** 是否重复执行（默认 true） */
-  repeat?: boolean;
+  /** 截止时间（秒，interval 类型可选） */
+  endTime?: number;
   /** 是否静默模式（默认 false） */
   silent?: boolean;
   /** 输出格式（默认 'text'） */

@@ -259,7 +259,6 @@ export class CronEngine {
       tools: exec.tools ? JSON.parse(exec.tools) : undefined,
       outputFormat: exec.outputFormat,
       enabled: true,
-      repeat: true,
       nextRunAt: undefined,
       lastRunAt: undefined,
       lastRunStatus: undefined,
