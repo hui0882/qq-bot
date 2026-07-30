@@ -99,6 +99,8 @@ export interface Task {
   outputFormat: 'text' | 'voice'
   /** 是否启用 */
   enabled: boolean
+  /** 截止时间（毫秒），interval 类型可选 */
+  endTime?: number
   /** 创建时间戳（毫秒） */
   createdAt: number
   /** 更新时间戳（毫秒） */
