@@ -38,6 +38,7 @@ export async function GET(request: Request, { params }: RouteParams) {
       schedule_cron: string | null
       schedule_interval: number | null
       schedule_at: number | null
+      end_time: number | null
       prompt: string
       tools: string | null
       output_format: string
@@ -111,6 +112,7 @@ export async function PUT(request: Request, { params }: RouteParams) {
       schedule_cron: string | null
       schedule_interval: number | null
       schedule_at: number | null
+      end_time: number | null
       prompt: string
       tools: string | null
       output_format: string
@@ -132,6 +134,7 @@ export async function PUT(request: Request, { params }: RouteParams) {
     if (body.tools !== undefined) updates.tools = JSON.stringify(body.tools)
     if (body.outputFormat !== undefined) updates.output_format = body.outputFormat
     if (body.enabled !== undefined) updates.enabled = body.enabled ? 1 : 0
+    if (body.endTime !== undefined) updates.end_time = body.endTime || null
 
     // 处理调度规则更新
     if (body.schedule !== undefined && typeof body.schedule === 'string') {
@@ -238,6 +241,7 @@ function rowToTask(row: {
   schedule_cron: string | null
   schedule_interval: number | null
   schedule_at: number | null
+  end_time: number | null
   prompt: string
   tools: string | null
   output_format: string
@@ -271,6 +275,7 @@ function rowToTask(row: {
     tools: row.tools ? JSON.parse(row.tools) : undefined,
     outputFormat: (row.output_format as 'text' | 'voice') || 'text',
     enabled: row.enabled === 1,
+    endTime: row.end_time || undefined,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }
