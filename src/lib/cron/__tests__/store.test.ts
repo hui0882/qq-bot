@@ -30,9 +30,12 @@ import {
   deleteTask,
   findDueTasks,
   updateTaskRunInfo,
+  updateTaskRunResult,
+  incrementRunCount,
   getUserTaskCount,
   addTaskLog,
   getTaskLogs,
+  getAllTasks,
 } from '../store'
 import type { CreateTaskParams } from '../types'
 
@@ -138,6 +141,40 @@ describe('Cron Store', () => {
       expect(task).toBeDefined()
       expect(task!.id).toBe('test-id')
       expect(task!.name).toBe('测试任务')
+    })
+
+    it('应该正确映射 endTime 字段', () => {
+      const endTimeValue = Date.now() + 86400000 // 1天后
+      mockGet.mockReturnValue({
+        id: 'test-id',
+        user_id: '123456',
+        name: '测试任务',
+        description: null,
+        schedule_raw: 'every 1h',
+        schedule_type: 'every',
+        schedule_cron: null,
+        schedule_interval: 3600,
+        schedule_at: null,
+        end_time: endTimeValue,
+        prompt: '测试提示词',
+        tools: null,
+        output_format: 'text',
+        enabled: 1,
+        next_run_at: null,
+        last_run_at: null,
+        last_run_status: null,
+        last_run_error: null,
+        run_count: 0,
+        silent: 0,
+        retry_count: 0,
+        created_at: Date.now(),
+        updated_at: Date.now(),
+      })
+
+      const task = getTask('test-id')
+
+      expect(task).toBeDefined()
+      expect(task!.endTime).toBe(endTimeValue)
     })
 
     it('应该返回 null 对于不存在的任务', () => {
@@ -281,6 +318,67 @@ describe('Cron Store', () => {
 
       expect(mockPrepare).toHaveBeenCalled()
       expect(mockRun).toHaveBeenCalled()
+    })
+  })
+
+  describe('updateTaskRunResult', () => {
+    it('应该更新任务执行结果', () => {
+      updateTaskRunResult('test-id', 'success')
+
+      expect(mockPrepare).toHaveBeenCalled()
+      expect(mockRun).toHaveBeenCalled()
+    })
+
+    it('应该更新任务执行结果包含错误信息', () => {
+      updateTaskRunResult('test-id', 'failed', '执行出错')
+
+      expect(mockPrepare).toHaveBeenCalled()
+      expect(mockRun).toHaveBeenCalled()
+    })
+  })
+
+  describe('incrementRunCount', () => {
+    it('应该递增任务执行计数', () => {
+      incrementRunCount('test-id')
+
+      expect(mockPrepare).toHaveBeenCalled()
+      expect(mockRun).toHaveBeenCalled()
+    })
+  })
+
+  describe('getAllTasks', () => {
+    it('应该获取所有任务', () => {
+      mockAll.mockReturnValue([
+        {
+          id: 'test-id-1',
+          user_id: '123456',
+          name: '任务1',
+          description: null,
+          schedule_raw: '0 9 * * *',
+          schedule_type: 'cron',
+          schedule_cron: null,
+          schedule_interval: null,
+          schedule_at: null,
+          end_time: null,
+          prompt: '提示词1',
+          tools: null,
+          output_format: 'text',
+          enabled: 1,
+          next_run_at: null,
+          last_run_at: null,
+          last_run_status: null,
+          last_run_error: null,
+          run_count: 0,
+          silent: 0,
+          retry_count: 0,
+          created_at: Date.now(),
+          updated_at: Date.now(),
+        },
+      ])
+
+      const tasks = getAllTasks()
+      expect(tasks.length).toBe(1)
+      expect(tasks[0].name).toBe('任务1')
     })
   })
 
