@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "enabled": true,
+    "events": {
+      "PreToolUse": [
+        {
+          "matcher": "Bash",
+          "hooks": [
+            { "type": "command", "command": "bash ${ZCODE_PROJECT_DIR}/.zcode/hooks/agent-guard.sh" }
+          ]
+        }
+      ]
+    }
+  }
+}
