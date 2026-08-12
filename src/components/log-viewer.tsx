@@ -3,10 +3,13 @@
 
 import React, { useEffect, useState, useRef } from 'react'
 
+/** 用户手动滚动离开顶部多少 px 后暂停自动跟随 */
+const SCROLL_PAUSE_THRESHOLD = 20
+
 interface LogEntry {
   id: string
   timestamp: number
-  type: 'request' | 'event' | 'system' | 'ai'
+  type: 'request' | 'event' | 'system' | 'ai' | 'tool'
   direction?: 'outgoing' | 'incoming'
   action?: string
   echo?: string
@@ -16,7 +19,23 @@ interface LogEntry {
 }
 
 interface LogViewerProps {
-  filter?: 'request' | 'event' | 'system' | 'ai'
+  filter?: 'request' | 'event' | 'system' | 'ai' | 'tool'
+}
+
+const typeColors: Record<string, string> = {
+  request: 'bg-blue-100 text-blue-800',
+  event: 'bg-green-100 text-green-800',
+  system: 'bg-yellow-100 text-yellow-800',
+  ai: 'bg-violet-100 text-violet-800',
+  tool: 'bg-orange-100 text-orange-800',
+}
+
+const typeLabels: Record<string, string> = {
+  request: '请求',
+  event: '事件',
+  system: '系统',
+  ai: 'AI',
+  tool: '工具',
 }
 
 export function LogViewer({ filter }: LogViewerProps) {
@@ -25,6 +44,8 @@ export function LogViewer({ filter }: LogViewerProps) {
   const [contextExpanded, setContextExpanded] = useState<Set<string>>(new Set())
   const [autoScroll, setAutoScroll] = useState(true)
   const containerRef = useRef<HTMLDivElement>(null)
+  // 用户手动滚动离开顶部后置为 true，暂停自动跟随；回到顶部后恢复
+  const pausedByScrollRef = useRef(false)
 
   useEffect(() => {
     const url = filter ? `/api/logs?type=${filter}&limit=200` : '/api/logs?limit=200'
@@ -41,7 +62,8 @@ export function LogViewer({ filter }: LogViewerProps) {
         if (msg.type === 'log') {
           const entry = msg.data as LogEntry
           if (!filter || entry.type === filter) {
-            setLogs((prev) => [...prev, entry].slice(-500))
+            // 最新日志插入数组头部，与初始倒序（最新在前）保持一致
+            setLogs((prev) => [entry, ...prev].slice(0, 500))
           }
         }
       } catch {
@@ -52,16 +74,21 @@ export function LogViewer({ filter }: LogViewerProps) {
     return () => eventSource.close()
   }, [filter])
 
+  // 自动跟随顶部：新日志从顶部进入，跟随时滚到顶部（scrollTop = 0）
   useEffect(() => {
-    if (autoScroll && containerRef.current) {
-      containerRef.current.scrollTop = containerRef.current.scrollHeight
+    if (autoScroll && !pausedByScrollRef.current && containerRef.current) {
+      containerRef.current.scrollTop = 0
     }
   }, [logs, autoScroll])
 
-  const typeColors: Record<string, string> = {
-    request: 'bg-blue-100 text-blue-800',
-    event: 'bg-green-100 text-green-800',
-    system: 'bg-yellow-100 text-yellow-800',
+  const handleScroll = () => {
+    const el = containerRef.current
+    if (!el) return
+    if (el.scrollTop > SCROLL_PAUSE_THRESHOLD) {
+      pausedByScrollRef.current = true
+    } else if (pausedByScrollRef.current) {
+      pausedByScrollRef.current = false
+    }
   }
 
   const statusColors: Record<string, string> = {
@@ -78,12 +105,20 @@ export function LogViewer({ filter }: LogViewerProps) {
           <input
             type="checkbox"
             checked={autoScroll}
-            onChange={(e) => setAutoScroll(e.target.checked)}
+            onChange={(e) => {
+              setAutoScroll(e.target.checked)
+              // 用户重新开启自动滚动时，清除因手动滚动产生的暂停标记
+              if (e.target.checked) pausedByScrollRef.current = false
+            }}
           />
           自动滚动
         </label>
       </div>
-      <div ref={containerRef} className="h-[600px] overflow-y-auto rounded-lg border">
+      <div
+        ref={containerRef}
+        onScroll={handleScroll}
+        className="h-[600px] overflow-y-auto rounded-lg border"
+      >
         <table className="w-full text-sm">
           <thead className="sticky top-0 bg-background">
             <tr className="border-b text-left text-muted-foreground">
@@ -107,7 +142,7 @@ export function LogViewer({ filter }: LogViewerProps) {
                   </td>
                   <td className="p-2">
                     <span className={`rounded px-1.5 py-0.5 text-xs ${typeColors[log.type] || ''}`}>
-                      {log.type}
+                      {typeLabels[log.type] || log.type}
                     </span>
                   </td>
                   <td className="p-2 font-mono text-xs">{log.action || '-'}</td>
