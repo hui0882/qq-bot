@@ -121,7 +121,8 @@ export async function processAIMessage(
     } else {
       // 记录工具调用开始日志
       const toolStartTime = Date.now()
-      logger.logSystem('AI: tool_call_start', {
+      logger.logTool({
+        action: 'tool_call_start',
         userId,
         tool: toolCall.function.name,
         args,
@@ -132,7 +133,8 @@ export async function processAIMessage(
       const toolDuration = Date.now() - toolStartTime
 
       // 记录工具调用完成日志
-      logger.logSystem('AI: tool_call_end', {
+      logger.logTool({
+        action: 'tool_call_end',
         userId,
         tool: toolCall.function.name,
         args,
