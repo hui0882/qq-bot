@@ -275,7 +275,7 @@ export interface PlatformConfig {
 export interface LogEntry {
   id: string
   timestamp: number
-  type: 'request' | 'event' | 'system' | 'ai'
+  type: 'request' | 'event' | 'system' | 'ai' | 'tool'
   direction?: 'outgoing' | 'incoming'
   action?: string
   echo?: string

@@ -5,7 +5,15 @@ import { useState } from 'react'
 import { LogViewer } from '@/components/log-viewer'
 import { LogExporter } from '@/components/log-exporter'
 
-type LogFilter = 'request' | 'event' | 'system' | 'ai' | undefined
+type LogFilter = 'request' | 'event' | 'system' | 'ai' | 'tool' | undefined
+
+const filterLabels: Record<Exclude<LogFilter, undefined>, string> = {
+  request: '请求',
+  event: '事件',
+  system: '系统',
+  ai: 'AI',
+  tool: '工具',
+}
 
 export default function LogsPage() {
   const [filter, setFilter] = useState<LogFilter>(undefined)
@@ -26,7 +34,7 @@ export default function LogsPage() {
       {showExporter && <LogExporter />}
 
       <div className="flex gap-2">
-        {([undefined, 'request', 'event', 'system', 'ai'] as LogFilter[]).map((f) => (
+        {([undefined, 'request', 'event', 'system', 'ai', 'tool'] as LogFilter[]).map((f) => (
           <button
             key={f || 'all'}
             onClick={() => setFilter(f)}
@@ -34,7 +42,7 @@ export default function LogsPage() {
               filter === f ? 'bg-primary text-primary-foreground' : 'border hover:bg-accent'
             }`}
           >
-            {f === undefined ? '全部' : f === 'request' ? '请求' : f === 'event' ? '事件' : f === 'system' ? '系统' : 'AI'}
+            {f === undefined ? '全部' : filterLabels[f]}
           </button>
         ))}
       </div>

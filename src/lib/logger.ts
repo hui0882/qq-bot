@@ -220,6 +220,26 @@ class Logger {
     })
   }
 
+  /**
+   * 记录工具调用日志（type='tool'），与 AI 主流程中的工具调用 start/end 对应
+   */
+  logTool(params: {
+    action?: 'tool_call_start' | 'tool_call_end'
+    userId: number
+    tool: string
+    args?: Record<string, unknown>
+    toolCallId?: string
+    success?: boolean
+    resultMessage?: string
+    duration?: number
+  }): LogEntry {
+    return this.add({
+      type: 'tool',
+      action: params.action,
+      data: { ...params },
+    })
+  }
+
   logAI(params: {
     userId: number
     direction: 'request' | 'response'
