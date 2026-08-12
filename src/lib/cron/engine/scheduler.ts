@@ -90,27 +90,36 @@ export class CronEngine {
       maxConcurrent: this.config.maxConcurrent,
     })
 
-    // 1. 加载任务
-    this.loadTasks()
+    try {
+      // 1. 加载任务
+      this.loadTasks()
 
-    // 2. 宕机恢复
-    const enabledTasks = this.getEnabledTasks()
-    const recoveryResult = recover(this.buffer, enabledTasks, this.config.missedPolicy)
+      // 2. 宕机恢复
+      const enabledTasks = this.getEnabledTasks()
+      const recoveryResult = recover(this.buffer, enabledTasks, this.config.missedPolicy)
 
-    logger.logSystem('CronEngine: recovery_done', {
-      recoveredRunning: recoveryResult.recoveredRunning,
-      handledMissed: recoveryResult.handledMissed,
-      buffered: recoveryResult.buffered,
-    })
-
-    // 3. 启动主循环
-    this.timer = setInterval(() => {
-      this.tick().catch((err) => {
-        logger.logSystem('CronEngine: tick_error', { error: String(err) })
+      logger.logSystem('CronEngine: recovery_done', {
+        recoveredRunning: recoveryResult.recoveredRunning,
+        handledMissed: recoveryResult.handledMissed,
+        buffered: recoveryResult.buffered,
       })
-    }, this.config.tickInterval)
 
-    logger.logSystem('CronEngine: started')
+      // 3. 启动主循环
+      this.timer = setInterval(() => {
+        this.tick().catch((err) => {
+          logger.logSystem('CronEngine: tick_error', { error: String(err) })
+        })
+      }, this.config.tickInterval)
+
+      logger.logSystem('CronEngine: started')
+    } catch (err) {
+      // 启动失败：复位 running，允许后续重试，避免引擎永久瘫痪
+      this.running = false
+      this.timer = null
+      const errorMessage = err instanceof Error ? err.message : String(err)
+      logger.logSystem('CronEngine: start_failed', { error: errorMessage })
+      throw err
+    }
   }
 
   /**

@@ -428,11 +428,15 @@ async function createScheduledTask(
         }
         case 'interval': {
           const { first_run, interval_value, interval_unit, end_time } = scheduleConfig
-          schedule = `at ${first_run || '08:00'}`  // 首次执行用 at
+          // 将间隔参数组合为引擎可解析的 every 调度串（如 "every 10m"、"every 2h"）
+          if (interval_value && interval_unit) {
+            schedule = `every ${interval_value}${interval_unit}`
+          } else {
+            schedule = `at ${first_run || '08:00'}`
+          }
           if (end_time) {
             endTimeValue = Math.floor(new Date(end_time).getTime() / 1000)
           }
-          // interval 信息存储在 description 或单独处理
           break
         }
         default:
@@ -473,9 +477,15 @@ async function createScheduledTask(
     // 更新任务
     updateTask(task.id, updates)
 
-    // 刷新引擎，使新任务立即生效
-    const engine = getCronEngine()
-    engine.unregisterTask(task.id)
+    // 创建首次执行并注册到引擎，使新任务立即生效
+    createFirstExecution({ ...task, ...updates } as CronTask, parsedToScheduleConfig(parsed))
+
+    logger.logSystem('定时任务已创建', {
+      userId,
+      taskId: task.id,
+      taskName: task.name,
+      scheduleType: parsed.type,
+    })
 
     const repeatText = task.scheduleType === 'at' ? '一次性' : '重复执行'
     const silentText = task.silent ? '，静默模式' : ''
@@ -488,6 +498,11 @@ async function createScheduledTask(
 任务 ID：${task.id}`
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
+    logger.logSystem('定时任务创建失败', {
+      userId,
+      taskName: args.name,
+      error: message,
+    })
     return `创建失败：${message}`
   }
 }
@@ -605,12 +620,6 @@ async function updateScheduledTask(
       changes.push('提示词已更新')
     }
 
-    // 更新重复标志
-    if (args.repeat !== undefined) {
-      updates.repeat = Boolean(args.repeat)
-      changes.push(`重复执行 → ${updates.repeat ? '是' : '否'}`)
-    }
-
     // 更新静默模式
     if (args.silent !== undefined) {
       updates.silent = Boolean(args.silent)
@@ -658,7 +667,7 @@ async function updateScheduledTask(
     }
 
     if (Object.keys(updates).length === 0) {
-      return '⚠️ 没有提供任何要修改的内容。可以修改：名称(name)、调度规则(schedule)、提示词(prompt)、是否重复(repeat)、静默模式(silent)、输出格式(output_format)'
+      return '⚠️ 没有提供任何要修改的内容。可以修改：名称(name)、调度规则(schedule)、提示词(prompt)、静默模式(silent)、输出格式(output_format)'
     }
 
     updateTask(task.id, updates)
@@ -742,7 +751,9 @@ async function resumeScheduledTask(userId: string, taskIdOrPrefix: string): Prom
       updates.nextRunAt = nextRunSeconds * 1000
     } catch {
       // 如果计算失败（如 at 类型时间已过），重置为 every 1d 避免无限循环
-      updates.repeat = true
+      updates.scheduleType = 'every'
+      updates.scheduleInterval = 86400
+      updates.scheduleAt = undefined
     }
   }
 

@@ -176,6 +176,11 @@ class ConfigManager {
       engine.start()
       console.log('[Config] 定时任务引擎已启动')
     } catch (err) {
+      // 动态导入 logger，避免与 src/lib/logger.ts 形成循环依赖
+      const { logger } = await import('@/lib/logger')
+      logger.logSystem('定时任务引擎启动失败', {
+        error: err instanceof Error ? err.message : String(err),
+      })
       console.error('[Config] 启动定时任务引擎失败:', err)
     }
   }

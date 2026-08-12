@@ -240,7 +240,13 @@ export async function executeToolCall(userId: number, toolName: string, args: Re
       try {
         const { executeCronToolCall } = await import('@/lib/cron/tools')
         const message = await executeCronToolCall(toolName, args as Record<string, any>, String(userId))
-        return { success: true, message }
+        // executeCronToolCall 以字符串表达结果，失败时统一以 "X失败：" 前缀开头，
+        // 或包含 "❌" 标记（如 "任务不存在"）。据此判定真实成败，避免失败被伪装成成功。
+        const success =
+          !/^(创建失败|更新失败|删除失败|暂停失败|恢复失败|查询失败)/.test(message) &&
+          !message.startsWith('未知的定时任务工具') &&
+          !message.startsWith('❌')
+        return { success, message }
       } catch (err) {
         return { success: false, message: `定时任务工具执行失败: ${(err as Error).message}` }
       }

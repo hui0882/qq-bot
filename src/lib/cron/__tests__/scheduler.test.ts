@@ -18,6 +18,8 @@ vi.mock('../../db', () => ({
       run: vi.fn(),
     })),
     exec: vi.fn(),
+    // initCronTables 的列迁移使用 db.pragma 读取现有列
+    pragma: vi.fn(() => []),
   },
   initDatabase: vi.fn().mockResolvedValue(undefined),
   closeDatabase: vi.fn(),
@@ -162,6 +164,60 @@ describe('CronEngine - 任务注册/注销', () => {
   it('注销不存在的任务不会出错', () => {
     engine.unregisterTask('non-existent-id') // 不应该抛出错误
     expect(engine.getStatus().totalTasks).toBe(0)
+  })
+})
+
+describe('CronEngine - 启动失败恢复', () => {
+  let engine: CronEngine
+
+  beforeEach(() => {
+    (globalThis as any).__cronEngine = null
+    engine = new CronEngine({
+      bufferSize: 5,
+      tickInterval: 10_000,
+      maxConcurrent: 2,
+    })
+  })
+
+  afterEach(() => {
+    engine.stop()
+  })
+
+  it('loadTasks 抛错时 running 复位为 false 并可再次启动成功', async () => {
+    const { logger } = await import('../../logger')
+
+    // 第一次启动：加载任务抛错（loadTasks 是私有方法，spy 模拟其抛错）
+    const loadTasksSpy = vi
+      .spyOn(engine as unknown as { loadTasks: () => void }, 'loadTasks')
+      .mockImplementationOnce(() => {
+        throw new Error('数据库连接失败')
+      })
+
+    expect(() => engine.start()).toThrow('数据库连接失败')
+
+    // 修复：启动失败后 running 必须复位，否则引擎永久瘫痪
+    expect(engine.getStatus().running).toBe(false)
+    expect(logger.logSystem).toHaveBeenCalledWith(
+      'CronEngine: start_failed',
+      expect.objectContaining({ error: '数据库连接失败' }),
+    )
+
+    // 数据库恢复后可以再次启动成功
+    engine.start()
+    expect(engine.getStatus().running).toBe(true)
+
+    loadTasksSpy.mockRestore()
+  })
+
+  it('成功启动时创建主循环定时器', () => {
+    const setIntervalSpy = vi.spyOn(globalThis, 'setInterval')
+    try {
+      engine.start()
+      expect(engine.getStatus().running).toBe(true)
+      expect(setIntervalSpy).toHaveBeenCalledTimes(1)
+    } finally {
+      setIntervalSpy.mockRestore()
+    }
   })
 })
 

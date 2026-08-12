@@ -17,10 +17,13 @@ vi.mock('../../db', () => ({
   db: {
     exec: mockExec,
     prepare: mockPrepare,
+    // initCronTables 的列迁移使用 db.pragma 读取现有列
+    pragma: vi.fn(() => []),
   },
 }))
 
 // Import store after mocking
+import { db } from '../../db'
 import {
   initCronTables,
   createTask,
@@ -57,6 +60,83 @@ describe('Cron Store', () => {
       expect(mockExec).toHaveBeenCalled()
       expect(mockExec.mock.calls[0][0]).toContain('CREATE TABLE IF NOT EXISTS cron_tasks')
       expect(mockExec.mock.calls[0][0]).toContain('CREATE TABLE IF NOT EXISTS cron_logs')
+    })
+  })
+
+  describe('migrateCronTasksColumns（旧库列迁移）', () => {
+    const oldColumns = [
+      { name: 'id' },
+      { name: 'user_id' },
+      { name: 'name' },
+      { name: 'schedule_raw' },
+      { name: 'schedule_type' },
+      { name: 'prompt' },
+      { name: 'enabled' },
+      { name: 'created_at' },
+      { name: 'updated_at' },
+    ]
+    const fullColumns = [
+      { name: 'id' },
+      { name: 'user_id' },
+      { name: 'name' },
+      { name: 'description' },
+      { name: 'schedule_raw' },
+      { name: 'schedule_type' },
+      { name: 'schedule_cron' },
+      { name: 'schedule_interval' },
+      { name: 'schedule_at' },
+      { name: 'end_time' },
+      { name: 'prompt' },
+      { name: 'tools' },
+      { name: 'output_format' },
+      { name: 'enabled' },
+      { name: 'next_run_at' },
+      { name: 'last_run_at' },
+      { name: 'last_run_status' },
+      { name: 'last_run_error' },
+      { name: 'run_count' },
+      { name: 'silent' },
+      { name: 'retry_count' },
+      { name: 'created_at' },
+      { name: 'updated_at' },
+    ]
+
+    it('旧库缺少 end_time 等列时应对缺失列执行 ALTER TABLE ADD COLUMN', () => {
+      vi.mocked(db.pragma).mockReturnValueOnce(oldColumns as any)
+
+      initCronTables()
+
+      const alterCalls = mockExec.mock.calls.filter((call) =>
+        String(call[0]).includes('ALTER TABLE cron_tasks ADD COLUMN'),
+      )
+      // 缺失的列被补齐
+      expect(alterCalls.some((call) => String(call[0]).includes('ADD COLUMN end_time INTEGER'))).toBe(true)
+      expect(alterCalls.some((call) => String(call[0]).includes('ADD COLUMN silent INTEGER DEFAULT 0'))).toBe(true)
+      expect(alterCalls.some((call) => String(call[0]).includes('ADD COLUMN schedule_interval INTEGER'))).toBe(true)
+      expect(alterCalls.some((call) => String(call[0]).includes('ADD COLUMN output_format TEXT DEFAULT'))).toBe(true)
+      // 已存在的列不会被重复添加
+      expect(alterCalls.some((call) => String(call[0]).includes('ADD COLUMN name '))).toBe(false)
+    })
+
+    it('新库已包含全部列时不应产生任何 ALTER TABLE', () => {
+      vi.mocked(db.pragma).mockReturnValueOnce(fullColumns as any)
+
+      initCronTables()
+
+      const alterCalls = mockExec.mock.calls.filter((call) =>
+        String(call[0]).includes('ALTER TABLE'),
+      )
+      expect(alterCalls.length).toBe(0)
+    })
+
+    it('pragma 读取现有列后 initCronTables 仍可正常初始化新表', () => {
+      vi.mocked(db.pragma).mockReturnValueOnce(oldColumns as any)
+
+      initCronTables()
+
+      // 最后一个 exec 是 task_executions 新表
+      const execs = mockExec.mock.calls.map((call) => String(call[0]))
+      expect(execs.some((sql) => sql.includes('CREATE TABLE IF NOT EXISTS task_executions'))).toBe(true)
     })
   })
 
