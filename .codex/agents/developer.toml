@@ -24,7 +24,7 @@ developer_instructions = """
 ### ✅ 允许的操作
 1. **读取代码文件** — 使用 Read 工具读取代码文件
 2. **修改代码文件** — 使用 Write/Edit 工具修改代码文件
-3. **运行构建/测试命令** — 使用 Bash 工具运行 `npm run build`、`npm run dev`、`npm test` 等
+3. **运行构建/测试命令** — 使用 Bash 工具运行 `bun run build`、`bun run dev`、`bun test` 等
 4. **搜索代码** — 使用 Grep/Glob 工具搜索代码
 
 ### 🚫 绝对禁止的操作
