@@ -8,7 +8,7 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { parseSchedule } from '@/lib/cron/parser'
-import { getCronEngine } from '@/lib/cron/engine'
+import { getCronEngine, normalizeScheduleAtSeconds } from '@/lib/cron/engine'
 import { createExecution } from '@/lib/cron/engine/processor'
 import { computeNextExecutionTime } from '@/lib/cron/engine/processor'
 import type { Task, ScheduleConfig } from '@/lib/cron/engine/types'
@@ -43,6 +43,12 @@ export async function GET(request: Request) {
         tools: string | null
         output_format: string
         enabled: number
+        next_run_at: number | null
+        last_run_at: number | null
+        last_run_status: string | null
+        last_run_error: string | null
+        run_count: number
+        silent: number
         created_at: number
         updated_at: number
       }>
@@ -66,6 +72,12 @@ export async function GET(request: Request) {
         tools: string | null
         output_format: string
         enabled: number
+        next_run_at: number | null
+        last_run_at: number | null
+        last_run_status: string | null
+        last_run_error: string | null
+        run_count: number
+        silent: number
         created_at: number
         updated_at: number
       }>
@@ -131,7 +143,7 @@ export async function POST(request: Request) {
       getLegacyScheduleType(parsed.type),
       parsed.expression || null,
       parsed.interval || null,
-      parsed.at ? parsed.at * 1000 : null,
+      parsed.at ? parsed.at : null,
       body.endTime || null,
       prompt,
       tools ? JSON.stringify(tools) : null,
@@ -208,14 +220,22 @@ function rowToTask(row: {
   tools: string | null
   output_format: string
   enabled: number
+  next_run_at: number | null
+  last_run_at: number | null
+  last_run_status: string | null
+  last_run_error: string | null
+  run_count: number
+  silent: number
   created_at: number
   updated_at: number
 }): Task {
+  const scheduleAtSeconds = normalizeScheduleAtSeconds(row.schedule_at)
+
   let schedule: ScheduleConfig
 
   switch (row.schedule_type) {
     case 'at':
-      schedule = { type: 'oneTime', at: row.schedule_at ? Math.floor(row.schedule_at / 1000) : undefined }
+      schedule = { type: 'oneTime', at: scheduleAtSeconds }
       break
     case 'every':
       schedule = { type: 'interval', interval: row.schedule_interval || undefined }
@@ -240,6 +260,17 @@ function rowToTask(row: {
     endTime: row.end_time || undefined,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    // ===== 旧字段（前端消费，单位对齐：时间戳一律毫秒） =====
+    scheduleType: row.schedule_type as 'at' | 'every' | 'cron',
+    scheduleCron: row.schedule_cron || undefined,
+    scheduleInterval: row.schedule_interval || undefined,
+    scheduleAt: scheduleAtSeconds ? scheduleAtSeconds * 1000 : undefined,
+    nextRunAt: row.next_run_at || undefined,
+    lastRunAt: row.last_run_at || undefined,
+    lastRunStatus: row.last_run_status || undefined,
+    lastRunError: row.last_run_error || undefined,
+    runCount: row.run_count || 0,
+    silent: row.silent === 1,
   }
 }
 

@@ -6,6 +6,7 @@
  */
 
 import { db } from '../db'
+import { normalizeScheduleAtSeconds } from './engine/units'
 import type { CronTask, CronLog, CreateTaskParams, TaskStatus, OutputFormat, ScheduleType } from './types'
 
 // ============ 数据库行类型（snake_case） ============
@@ -60,7 +61,7 @@ function rowToTask(row: CronTaskRow): CronTask {
     scheduleType: row.schedule_type as ScheduleType,
     scheduleCron: row.schedule_cron || undefined,
     scheduleInterval: row.schedule_interval || undefined,
-    scheduleAt: row.schedule_at || undefined,
+    scheduleAt: normalizeScheduleAtSeconds(row.schedule_at),
     endTime: row.end_time || undefined,
     prompt: row.prompt,
     tools: row.tools ? JSON.parse(row.tools) : undefined,

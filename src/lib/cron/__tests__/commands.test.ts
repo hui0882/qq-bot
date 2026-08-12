@@ -22,6 +22,7 @@ vi.mock('../engine', () => ({
   getCronEngine: vi.fn(() => ({
     unregisterTask: vi.fn(),
     registerTask: vi.fn(),
+    enqueuePendingExecution: vi.fn(),
   })),
 }))
 
@@ -223,6 +224,7 @@ describe('handleCronCommand', () => {
     it('应该触发任务执行', async () => {
       const { getTask } = await import('../store')
       const { createExecution, computeNextExecutionTime } = await import('../engine/processor')
+      const { getCronEngine } = await import('../engine')
 
       vi.mocked(getTask).mockReturnValue({
         id: 'test-id',
@@ -238,10 +240,17 @@ describe('handleCronCommand', () => {
       const result = await handleCronCommand('123456', ['run', 'abc123'])
       expect(result).toContain('已触发任务「测试任务」执行')
       expect(createExecution).toHaveBeenCalled()
+      // 回归：创建即时执行后应立即调用 engine.enqueuePendingExecution 入队（参数为任务 id）
+      const engine = vi.mocked(getCronEngine).mock.results[0]!.value as {
+        enqueuePendingExecution: ReturnType<typeof vi.fn>
+      }
+      expect(engine.enqueuePendingExecution).toHaveBeenCalledWith('test-id')
     })
 
     it('应该处理执行失败', async () => {
       const { getTask } = await import('../store')
+      const { computeNextExecutionTime } = await import('../engine/processor')
+      const { getCronEngine } = await import('../engine')
 
       vi.mocked(getTask).mockReturnValue({
         id: 'test-id',
@@ -249,10 +258,17 @@ describe('handleCronCommand', () => {
         name: '测试任务',
         scheduleType: 'invalid',
       } as any)
+      // 无效调度类型 → 无法计算下次执行时间（clearAllMocks 不清实现，需显式置空；函数返回类型为 number | null）
+      vi.mocked(computeNextExecutionTime).mockReturnValue(null)
 
       const result = await handleCronCommand('123456', ['run', 'abc123'])
       // 无效类型不会创建 Execution，但不会抛出错误
       expect(result).toContain('已触发任务')
+      // 回归：未创建执行时不应调用 enqueuePendingExecution
+      const engine = vi.mocked(getCronEngine).mock.results[0]!.value as {
+        enqueuePendingExecution: ReturnType<typeof vi.fn>
+      }
+      expect(engine.enqueuePendingExecution).not.toHaveBeenCalled()
     })
   })
 

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getCronEngine } from '@/lib/cron/engine'
+import { getCronEngine, normalizeScheduleAtSeconds } from '@/lib/cron/engine'
 import { cancelPendingByTask, createExecution, computeNextExecutionTime } from '@/lib/cron/engine/processor'
 import type { Task } from '@/lib/cron/engine/types'
 
@@ -63,10 +63,10 @@ export async function POST(request: Request, { params }: RouteParams) {
 function rowToTask(row: any): Task {
   let schedule: any
   switch (row.schedule_type) {
-    case 'oneTime':
-      schedule = { type: 'oneTime', at: row.schedule_at ? Math.floor(row.schedule_at / 1000) : undefined }
+    case 'at':
+      schedule = { type: 'oneTime', at: normalizeScheduleAtSeconds(row.schedule_at) }
       break
-    case 'interval':
+    case 'every':
       schedule = { type: 'interval', interval: row.schedule_interval || undefined }
       break
     case 'cron':

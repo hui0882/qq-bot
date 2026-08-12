@@ -43,6 +43,28 @@ interface TaskExecution {
 
 type TabType = 'all' | 'oneTime' | 'cron' | 'interval'
 
+// 带错误处理的 JSON 请求辅助函数
+// 非 2xx 或响应不是 JSON（如 404 返回的 HTML 页面）时返回 null，
+// 避免 res.json() 解析 HTML 抛出 SyntaxError
+async function fetchJson(url: string, init?: RequestInit): Promise<any | null> {
+  try {
+    const res = await fetch(url, init)
+    if (!res.ok) {
+      console.error(`请求失败 ${init?.method || 'GET'} ${url}: HTTP ${res.status}`)
+      return null
+    }
+    const contentType = res.headers.get('content-type') || ''
+    if (!contentType.includes('application/json')) {
+      console.error(`响应不是 JSON ${url}: content-type=${contentType}`)
+      return null
+    }
+    return await res.json()
+  } catch (e) {
+    console.error(`请求异常 ${init?.method || 'GET'} ${url}:`, e)
+    return null
+  }
+}
+
 export default function CronPage() {
   const [tasks, setTasks] = useState<CronTask[]>([])
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
@@ -72,9 +94,8 @@ export default function CronPage() {
   // 加载所有定时任务
   const loadTasks = useCallback(async () => {
     try {
-      const res = await fetch('/api/cron-engine/tasks')
-      const data = await res.json()
-      if (data.success) {
+      const data = await fetchJson('/api/cron-engine/tasks')
+      if (data && data.success) {
         setTasks(data.data || [])
       }
     } catch (e) {
@@ -101,14 +122,13 @@ export default function CronPage() {
   // 获取任务详情
   const fetchTaskDetail = async (taskId: string) => {
     try {
-      const res = await fetch(`/api/cron-engine/tasks/${taskId}`)
-      const data = await res.json()
-      if (data.success) {
+      const data = await fetchJson(`/api/cron-engine/tasks/${taskId}`)
+      if (data && data.success) {
         setSelectedTask(data.data.task)
         setSelectedTaskId(taskId)
         setExecutions(data.data.executions || [])
       } else {
-        setMessage(data.message)
+        setMessage(data ? data.message : '获取任务详情失败')
         setSelectedTask(null)
         setSelectedTaskId(null)
       }
@@ -120,12 +140,11 @@ export default function CronPage() {
   // 操作任务
   const handleToggle = async (taskId: string) => {
     try {
-      const res = await fetch(`/api/cron-engine/tasks/${taskId}/toggle`, {
+      const data = await fetchJson(`/api/cron-engine/tasks/${taskId}/toggle`, {
         method: 'POST',
       })
-      const data = await res.json()
-      setMessage(data.message)
-      if (data.success) {
+      setMessage(data ? data.message : '操作失败')
+      if (data && data.success) {
         await loadTasks()
         if (selectedTaskId === taskId) fetchTaskDetail(taskId)
       }
@@ -137,12 +156,11 @@ export default function CronPage() {
   // 立即执行
   const handleRun = async (taskId: string) => {
     try {
-      const res = await fetch(`/api/cron-engine/tasks/${taskId}/run`, {
+      const data = await fetchJson(`/api/cron-engine/tasks/${taskId}/run`, {
         method: 'POST',
       })
-      const data = await res.json()
-      setMessage(data.message)
-      if (data.success) {
+      setMessage(data ? data.message : '执行失败')
+      if (data && data.success) {
         await loadTasks()
         if (selectedTaskId === taskId) fetchTaskDetail(taskId)
       }
@@ -155,12 +173,11 @@ export default function CronPage() {
   const handleDelete = async (taskId: string, taskName: string) => {
     if (!confirm(`确定删除「${taskName}」?`)) return
     try {
-      const res = await fetch(`/api/cron-engine/tasks/${taskId}`, {
+      const data = await fetchJson(`/api/cron-engine/tasks/${taskId}`, {
         method: 'DELETE',
       })
-      const data = await res.json()
-      setMessage(data.message)
-      if (data.success) {
+      setMessage(data ? data.message : '删除失败')
+      if (data && data.success) {
         await loadTasks()
         if (selectedTaskId === taskId) {
           setSelectedTask(null)
@@ -202,14 +219,13 @@ export default function CronPage() {
         return
       }
 
-      const res = await fetch(`/api/cron-engine/tasks/${editingTask.id}`, {
+      const data = await fetchJson(`/api/cron-engine/tasks/${editingTask.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updates),
       })
-      const data = await res.json()
-      setMessage(data.message)
-      if (data.success) {
+      setMessage(data ? data.message : '更新任务失败')
+      if (data && data.success) {
         await loadTasks()
         if (selectedTaskId === editingTask.id) fetchTaskDetail(editingTask.id)
         setEditingTask(null)
@@ -238,14 +254,13 @@ export default function CronPage() {
         body.endTime = Math.floor(new Date(createForm.endTime).getTime() / 1000)
       }
 
-      const res = await fetch('/api/cron-engine/tasks', {
+      const data = await fetchJson('/api/cron-engine/tasks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       })
-      const data = await res.json()
-      setMessage(data.message)
-      if (data.success) {
+      setMessage(data ? data.message : '创建任务失败')
+      if (data && data.success) {
         await loadTasks()
         setShowCreateModal(false)
         setCreateForm({ name: '', schedule: '', prompt: '', silent: false, outputFormat: 'text', endTime: '' })

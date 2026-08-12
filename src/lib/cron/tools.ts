@@ -487,7 +487,7 @@ async function createScheduledTask(
       scheduleType: parsed.type,
     })
 
-    const repeatText = task.scheduleType === 'at' ? '一次性' : '重复执行'
+    const repeatText = parsed.type === 'at' ? '一次性' : '重复执行'
     const silentText = task.silent ? '，静默模式' : ''
 
     return `定时任务创建成功！

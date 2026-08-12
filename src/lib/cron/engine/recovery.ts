@@ -17,6 +17,7 @@ import {
   findPendingByTask,
 } from './processor'
 import { PreFetchBuffer } from './buffer'
+import { normalizeScheduleAtSeconds } from './units'
 import { db } from '../../db'
 import { logger } from '../../logger'
 
@@ -163,24 +164,43 @@ export function fillBuffer(buffer: PreFetchBuffer, tasks: Task[]): number {
     if (buffer.isFull) break
     if (buffer.hasTask(task.id)) continue
 
-    // 查找是否已有 pending 的 Execution
-    let pending = findPendingByTask(task.id)
-
-    if (!pending) {
-      // 创建新的 Execution
-      const nextTime = computeNextTimeForRecovery(task, Date.now())
-      if (!nextTime) continue
-
-      const execId = createExecutionFromTask(task, nextTime)
-      pending = getExecutionById(execId)
-    }
-
-    if (pending && buffer.push(pending)) {
+    if (pushTaskToBuffer(buffer, task)) {
       count++
     }
   }
 
   return count
+}
+
+/**
+ * 为单个任务填充缓冲（注册/更新/手动触发时调用）
+ *
+ * 与 fillBuffer 的单任务版：
+ * 1. 任务已启用且缓冲未满、该任务不在缓冲中
+ * 2. 查找该任务最早的 pending Execution，存在则直接入堆
+ * 3. 不存在则按调度配置计算下次执行时间并创建 Execution 再入堆
+ *
+ * @param buffer - 预取缓冲
+ * @param task - 任务定义
+ * @returns 是否成功入堆
+ */
+export function pushTaskToBuffer(buffer: PreFetchBuffer, task: Task): boolean {
+  if (!task.enabled) return false
+  if (buffer.isFull || buffer.hasTask(task.id)) return false
+
+  // 查找是否已有 pending 的 Execution
+  let pending = findPendingByTask(task.id)
+
+  if (!pending) {
+    // 创建新的 Execution
+    const nextTime = computeNextTimeForRecovery(task, Date.now())
+    if (!nextTime) return false
+
+    const execId = createExecutionFromTask(task, nextTime)
+    pending = getExecutionById(execId)
+  }
+
+  return !!pending && buffer.push(pending)
 }
 
 /**
@@ -190,11 +210,14 @@ function computeNextTimeForRecovery(task: Task, now: number): number | null {
   const nowSec = Math.floor(now / 1000)
 
   switch (task.schedule.type) {
-    case 'oneTime':
-      if (task.schedule.at && task.schedule.at > nowSec) {
-        return task.schedule.at * 1000
+    case 'oneTime': {
+      // 任务定义的 at 为秒级（DB schedule_at 一律秒），统一转毫秒与 now（毫秒）比较
+      const atSec = normalizeScheduleAtSeconds(task.schedule.at)
+      if (atSec && atSec * 1000 > now) {
+        return atSec * 1000
       }
       return null
+    }
 
     case 'interval':
       if (!task.schedule.interval || task.schedule.interval <= 0) return null
