@@ -41,8 +41,20 @@ jobs:
             echo "拉取最新代码..."
             git pull origin main || { echo "❌ 拉取代码失败"; exit 1; }
 
+            # 确保 Node 22 环境（better-sqlite3 ABI 要求）
+            echo "确保 Node 22 环境（better-sqlite3 ABI 要求）..."
+            export NVM_DIR="$HOME/.nvm"
+            if [ -s "$NVM_DIR/nvm.sh" ]; then
+              . "$NVM_DIR/nvm.sh"
+              nvm use 22 >/dev/null 2>&1 || nvm install 22 >/dev/null 2>&1 || true
+            fi
+            node -v || true
+
             echo "安装依赖..."
             bun install --frozen-lockfile || { echo "❌ 安装依赖失败"; exit 1; }
+
+            echo "运行单元测试..."
+            bun run test || { echo "❌ 单元测试失败"; exit 1; }
 
             echo "构建项目..."
             bun run build || { echo "❌ 构建失败"; exit 1; }
