@@ -98,6 +98,35 @@ describe('computeNextExecutionTime', () => {
       const result = computeNextExecutionTime(task, Date.now())
       expect(result).toBeNull()
     })
+
+    it('防毒化：at 为毫秒（旧数据）时按毫秒比较，返回 13 位时间戳而非 16 位', () => {
+      // 旧数据：schedule_at 被写成毫秒。修复前引擎按秒读取 → at * 1000 得到 16 位
+      const nowSec = Math.floor(Date.now() / 1000)
+      const atSec = nowSec + 3600
+      const atMs = atSec * 1000 // 毫秒级残留数据（13 位）
+      const task = makeTask({
+        schedule: { type: 'oneTime', at: atMs },
+      })
+
+      const result = computeNextExecutionTime(task, Date.now())
+
+      // 归一化为秒（atSec）再转毫秒，结果应为 13 位而非 16 位
+      expect(result).toBe(atSec * 1000)
+      expect(result).toBeLessThan(1_000_000_000_000_000) // < 1e15
+      expect(String(result!).length).toBe(13)
+    })
+
+    it('防毒化：at 为毫秒但已过期时返回 null（不会产生未来 16 位时间戳）', () => {
+      const nowSec = Math.floor(Date.now() / 1000)
+      const atSec = nowSec - 3600
+      const atMs = atSec * 1000 // 过去某时刻的毫秒表示
+      const task = makeTask({
+        schedule: { type: 'oneTime', at: atMs },
+      })
+
+      const result = computeNextExecutionTime(task, Date.now())
+      expect(result).toBeNull()
+    })
   })
 
   describe('interval 类型', () => {

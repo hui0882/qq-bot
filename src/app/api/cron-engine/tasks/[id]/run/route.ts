@@ -8,6 +8,7 @@ import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { createExecution } from '@/lib/cron/engine/processor'
 import { computeNextExecutionTime } from '@/lib/cron/engine/processor'
+import { normalizeScheduleAtSeconds } from '@/lib/cron/engine'
 import { executeTask as executeLegacyTask } from '@/lib/cron/executor'
 
 interface RouteParams {
@@ -74,7 +75,7 @@ export async function POST(request: Request, { params }: RouteParams) {
       scheduleType: row.schedule_type as 'at' | 'every' | 'cron',
       scheduleCron: row.schedule_cron || undefined,
       scheduleInterval: row.schedule_interval || undefined,
-      scheduleAt: row.schedule_at || undefined,
+      scheduleAt: normalizeScheduleAtSeconds(row.schedule_at),
       prompt: row.prompt,
       tools: row.tools ? JSON.parse(row.tools) : undefined,
       outputFormat: (row.output_format as 'text' | 'voice') || 'text',
@@ -119,7 +120,7 @@ export async function POST(request: Request, { params }: RouteParams) {
             type: row.schedule_type === 'at' ? 'oneTime' : row.schedule_type === 'every' ? 'interval' : 'cron',
             expression: row.schedule_cron || undefined,
             interval: row.schedule_interval || undefined,
-            at: row.schedule_at ? Math.floor(row.schedule_at / 1000) : undefined,
+            at: normalizeScheduleAtSeconds(row.schedule_at),
           },
           scheduleRaw: row.schedule_raw,
           prompt: row.prompt,

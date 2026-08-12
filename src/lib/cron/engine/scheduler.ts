@@ -19,8 +19,10 @@ import {
   markFailed,
   scheduleNextExecution,
   getExecution,
+  findPendingByTask,
 } from './processor'
-import { recover, fillBuffer } from './recovery'
+import { recover, fillBuffer, pushTaskToBuffer } from './recovery'
+import { normalizeScheduleAtSeconds } from './units'
 import { executeTask as executeLegacyTask } from './executor'
 import { db } from '../../db'
 import { logger } from '../../logger'
@@ -61,6 +63,9 @@ export class CronEngine {
 
   /** 已注册的任务（内存缓存） */
   private tasks: Map<string, Task> = new Map()
+
+  /** 上次日志记录的等待 scheduledAt（避免 tick 等待分支刷屏） */
+  private lastLoggedWaitScheduledAt: number | null = null
 
   constructor(config?: EngineConfig) {
     this.config = { ...DEFAULT_CONFIG, ...config }
@@ -161,6 +166,20 @@ export class CronEngine {
 
     // 如果还没到执行时间，等待
     if (exec.scheduledAt > now) {
+      // 未到期：静默等待下个 tick。
+      // 仅在等待目标变化时打一条日志（避免每 10s 刷屏），
+      // 便于排查"任务永不触发"类问题（如 16 位时间戳毒化）。
+      if (this.lastLoggedWaitScheduledAt !== exec.scheduledAt) {
+        this.lastLoggedWaitScheduledAt = exec.scheduledAt
+        logger.logSystem('CronEngine: tick_waiting', {
+          executionId: exec.id,
+          taskId: exec.taskId,
+          taskName: exec.taskName,
+          scheduledAt: exec.scheduledAt,
+          now,
+          waitMs: exec.scheduledAt - now,
+        })
+      }
       return
     }
 
@@ -266,7 +285,12 @@ export class CronEngine {
     if (this.buffer.isFull) return
 
     const enabledTasks = this.getEnabledTasks()
-    fillBuffer(this.buffer, enabledTasks)
+    const count = fillBuffer(this.buffer, enabledTasks)
+
+    logger.logSystem('CronEngine: buffer_refilled', {
+      count,
+      buffered: this.buffer.size,
+    })
   }
 
   // ============ 任务管理 ============
@@ -333,7 +357,7 @@ export class CronEngine {
       case 'at':
         schedule = {
           type: 'oneTime',
-          at: row.schedule_at || undefined,
+          at: normalizeScheduleAtSeconds(row.schedule_at),
         }
         break
       case 'every':
@@ -377,9 +401,40 @@ export class CronEngine {
 
   /**
    * 注册任务（创建或更新时调用）
+   *
+   * 1. 更新内存任务缓存
+   * 2. 重新注册（更新）时先移除缓冲中旧的 Execution，避免取消后的旧记录残留
+   * 3. 注册后立即把该任务最早的 pending Execution 推入缓冲，
+   *    使新任务无需等待下个 tick 的 refill 即可生效
    */
   registerTask(task: Task): void {
     this.tasks.set(task.id, task)
+
+    this.buffer.removeByTask(task.id)
+
+    if (this.running) {
+      pushTaskToBuffer(this.buffer, task)
+    }
+  }
+
+  /**
+   * 将任务最早的 pending Execution 推入缓冲（手动触发场景）
+   *
+   * 用于"立即执行"等路径：执行记录已创建，但不需要更新任务定义，
+   * 仅把已有 pending 记录放入调度队列即可。
+   *
+   * @param taskId - 任务 ID
+   * @returns 是否成功入队
+   */
+  enqueuePendingExecution(taskId: string): boolean {
+    if (!this.running || this.buffer.isFull || this.buffer.hasTask(taskId)) {
+      return false
+    }
+
+    const pending = findPendingByTask(taskId)
+    if (!pending) return false
+
+    return this.buffer.push(pending)
   }
 
   /**
@@ -415,14 +470,17 @@ export class CronEngine {
 
 // ============ 单例 ============
 
-let engineInstance: CronEngine | null = null
+const globalForEngine = globalThis as unknown as { __napcatCronEngine?: CronEngine }
 
 /**
  * 获取引擎单例
+ *
+ * 实例挂在 globalThis 上，确保多个 bundle（server/RSC/API route）共享同一实例，
+ * 避免各 bundle 各自创建引擎导致重复执行/缓冲不一致。
  */
 export function getCronEngine(config?: EngineConfig): CronEngine {
-  if (!engineInstance) {
-    engineInstance = new CronEngine(config)
+  if (!globalForEngine.__napcatCronEngine) {
+    globalForEngine.__napcatCronEngine = new CronEngine(config)
   }
-  return engineInstance
+  return globalForEngine.__napcatCronEngine
 }

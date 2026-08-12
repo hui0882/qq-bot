@@ -262,6 +262,70 @@ describe('Cron Store', () => {
       const task = getTask('non-existent-id')
       expect(task).toBeNull()
     })
+
+    it('防毒化：schedule_at 为毫秒（旧数据）时 scheduleAt 应归一化为秒', () => {
+      mockGet.mockReturnValue({
+        id: 'test-id',
+        user_id: '123456',
+        name: '测试任务',
+        description: null,
+        schedule_raw: 'at 2033-05-18T03:33:20',
+        schedule_type: 'at',
+        schedule_cron: null,
+        schedule_interval: null,
+        schedule_at: 2_000_000_000_000, // 毫秒级残留数据
+        end_time: null,
+        prompt: '测试提示词',
+        tools: null,
+        output_format: 'text',
+        enabled: 1,
+        next_run_at: null,
+        last_run_at: null,
+        last_run_status: null,
+        last_run_error: null,
+        run_count: 0,
+        silent: 0,
+        retry_count: 0,
+        created_at: Date.now(),
+        updated_at: Date.now(),
+      })
+
+      const task = getTask('test-id')
+
+      expect(task!.scheduleAt).toBe(2_000_000_000) // 秒级，而非 2e12
+    })
+
+    it('schedule_at 为秒时原样映射（10 位秒级时间戳不触发换算）', () => {
+      mockGet.mockReturnValue({
+        id: 'test-id',
+        user_id: '123456',
+        name: '测试任务',
+        description: null,
+        schedule_raw: 'at 15:30',
+        schedule_type: 'at',
+        schedule_cron: null,
+        schedule_interval: null,
+        schedule_at: 1_900_000_000,
+        end_time: null,
+        prompt: '测试提示词',
+        tools: null,
+        output_format: 'text',
+        enabled: 1,
+        next_run_at: null,
+        last_run_at: null,
+        last_run_status: null,
+        last_run_error: null,
+        run_count: 0,
+        silent: 0,
+        retry_count: 0,
+        created_at: Date.now(),
+        updated_at: Date.now(),
+      })
+
+      const task = getTask('test-id')
+
+      expect(task!.scheduleAt).toBe(1_900_000_000)
+    })
   })
 
   describe('getUserTasks', () => {

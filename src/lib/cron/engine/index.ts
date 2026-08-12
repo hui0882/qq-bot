@@ -20,6 +20,9 @@ export type {
 export { PreFetchBuffer } from './buffer'
 export { CronEngine, getCronEngine } from './scheduler'
 
+// 单位换算工具
+export { normalizeScheduleAtSeconds } from './units'
+
 // 处理器函数导出
 export {
   casRunning,

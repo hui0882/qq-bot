@@ -223,6 +223,9 @@ async function handleRun(userId: string, taskId: string): Promise<string> {
         attempts: 0,
         maxRetries: 2,
       })
+
+      // 立即入队到引擎缓冲，使本次触发的执行尽快被调度（不修改任务定义）
+      engine.enqueuePendingExecution(task.id)
     }
 
     return `🚀 已触发任务「${task.name}」执行\n稍后将收到执行结果`

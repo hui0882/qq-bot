@@ -9,13 +9,22 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 
+// Hoisted 共享 db mock（引擎内部多处 prepare 复用同一组 get/run/all，
+// 便于按调用顺序控制返回值）
+const { mockPrepare, mockGet, mockRun, mockAll } = vi.hoisted(() => ({
+  mockPrepare: vi.fn(),
+  mockGet: vi.fn(),
+  mockRun: vi.fn(),
+  mockAll: vi.fn(),
+}))
+
 // Mock dependencies
 vi.mock('../../db', () => ({
   db: {
     prepare: vi.fn(() => ({
-      all: vi.fn(() => []),
-      get: vi.fn(),
-      run: vi.fn(),
+      all: mockAll,
+      get: mockGet,
+      run: mockRun,
     })),
     exec: vi.fn(),
     // initCronTables 的列迁移使用 db.pragma 读取现有列
@@ -55,6 +64,51 @@ function makeTask(overrides: Partial<Task> = {}): Task {
   }
 }
 
+/** pending 执行行（findPendingByTask 返回） */
+function makePendingRow(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    id: 'pending-exec-1',
+    task_id: 'test-task-id',
+    user_id: 'user-1',
+    scheduled_at: Date.now() + 60_000,
+    started_at: null,
+    completed_at: null,
+    status: 'pending',
+    schedule_type: 'cron',
+    task_name: '测试任务',
+    prompt: '测试提示词',
+    tools: null,
+    output_format: 'text',
+    result: null,
+    error: null,
+    duration: null,
+    attempts: 0,
+    max_retries: 2,
+    created_at: Date.now(),
+    ...overrides,
+  }
+}
+
+/**
+ * 队列一次"无 pending → 创建 → 读回"流程：
+ * 第 1 次 get（findPendingByTask）返回 undefined，
+ * 第 2 次 get（getExecutionById）返回构造的执行行。
+ */
+function queueCreateFlow(row: Record<string, unknown>): void {
+  mockGet.mockReturnValueOnce(undefined).mockReturnValueOnce(row)
+}
+
+// 全局 db mock 默认行为：
+// - loadTasks / findRunningExecutions / findMissedExecutions → 空表
+// - 单个用例按需用 mockReturnValueOnce 队列控制 get 的返回值
+beforeEach(() => {
+  mockPrepare.mockClear()
+  mockAll.mockReset()
+  mockAll.mockReturnValue([])
+  mockRun.mockReset()
+  mockGet.mockReset()
+})
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -64,7 +118,7 @@ describe('CronEngine - 基本功能', () => {
 
   beforeEach(() => {
     // 重置单态
-    (globalThis as any).__cronEngine = null
+    (globalThis as any).__napcatCronEngine = undefined
     engine = new CronEngine({
       bufferSize: 5,
       tickInterval: 10_000,
@@ -111,7 +165,7 @@ describe('CronEngine - 任务注册/注销', () => {
   let engine: CronEngine
 
   beforeEach(() => {
-    (globalThis as any).__cronEngine = null
+    (globalThis as any).__napcatCronEngine = undefined
     engine = new CronEngine()
   })
 
@@ -171,7 +225,7 @@ describe('CronEngine - 启动失败恢复', () => {
   let engine: CronEngine
 
   beforeEach(() => {
-    (globalThis as any).__cronEngine = null
+    (globalThis as any).__napcatCronEngine = undefined
     engine = new CronEngine({
       bufferSize: 5,
       tickInterval: 10_000,
@@ -221,7 +275,206 @@ describe('CronEngine - 启动失败恢复', () => {
   })
 })
 
+describe('CronEngine - registerTask 注册即入队（回归）', () => {
+  let engine: CronEngine
+
+  beforeEach(() => {
+    (globalThis as any).__napcatCronEngine = undefined
+    engine = new CronEngine()
+  })
+
+  afterEach(() => {
+    engine.stop()
+  })
+
+  it('引擎运行中注册任务后 buffer 立即包含该任务最早的执行（无 pending 时按调度创建）', () => {
+    engine.start()
+    const nowSec = Math.floor(Date.now() / 1000)
+    const task = makeTask({ schedule: { type: 'oneTime', at: nowSec + 3600 } })
+    queueCreateFlow(makePendingRow({ id: 'created-exec', task_id: task.id, scheduled_at: (nowSec + 3600) * 1000 }))
+
+    engine.registerTask(task)
+
+    const buffered = engine.getBufferedExecutions()
+    expect(buffered).toHaveLength(1)
+    expect(buffered[0].taskId).toBe(task.id)
+    expect(buffered[0].scheduledAt).toBe((nowSec + 3600) * 1000)
+    expect(mockRun).toHaveBeenCalled() // 创建了 Execution 记录
+  })
+
+  it('引擎运行中注册任务后直接复用已有 pending Execution 入堆（不新建）', () => {
+    engine.start()
+    const pendingRow = makePendingRow({ scheduled_at: Date.now() + 5_000 })
+    mockGet.mockReturnValueOnce(pendingRow) // findPendingByTask
+
+    engine.registerTask(makeTask())
+
+    const buffered = engine.getBufferedExecutions()
+    expect(buffered).toHaveLength(1)
+    expect(buffered[0].id).toBe('pending-exec-1')
+    expect(buffered[0].scheduledAt).toBe(pendingRow.scheduled_at)
+    expect(mockRun).not.toHaveBeenCalled()
+  })
+
+  it('引擎未运行时注册任务只更新缓存，不触发入队', () => {
+    const task = makeTask({ schedule: { type: 'interval', interval: 60 } })
+    engine.registerTask(task)
+
+    expect(engine.getStatus().totalTasks).toBe(1)
+    expect(engine.getBufferedExecutions()).toHaveLength(0)
+    expect(mockGet).not.toHaveBeenCalled()
+    expect(mockRun).not.toHaveBeenCalled()
+  })
+
+  it('引擎运行中注册禁用任务不入队', () => {
+    engine.start()
+    engine.registerTask(makeTask({ enabled: false }))
+
+    expect(engine.getBufferedExecutions()).toHaveLength(0)
+    expect(mockGet).not.toHaveBeenCalled()
+  })
+
+  it('重新注册（更新）时先移除缓冲中旧记录再入队新记录', () => {
+    engine.start()
+    mockGet.mockReturnValueOnce(makePendingRow({ id: 'old-exec', scheduled_at: Date.now() + 60_000 }))
+    engine.registerTask(makeTask({ name: 'v1' }))
+    expect(engine.getBufferedExecutions()).toHaveLength(1)
+
+    mockGet.mockReturnValueOnce(makePendingRow({ id: 'new-exec', scheduled_at: Date.now() + 5_000 }))
+    engine.registerTask(makeTask({ name: 'v2' }))
+
+    const buffered = engine.getBufferedExecutions()
+    expect(buffered).toHaveLength(1)
+    expect(buffered[0].id).toBe('new-exec')
+  })
+})
+
+describe('CronEngine - enqueuePendingExecution（手动触发入队，回归）', () => {
+  let engine: CronEngine
+
+  beforeEach(() => {
+    (globalThis as any).__napcatCronEngine = undefined
+  })
+
+  afterEach(() => {
+    engine.stop()
+  })
+
+  it('引擎未运行时返回 false 且不入队', () => {
+    engine = new CronEngine()
+
+    const result = engine.enqueuePendingExecution('task-1')
+
+    expect(result).toBe(false)
+    expect(engine.getBufferedExecutions()).toHaveLength(0)
+  })
+
+  it('任务无 pending Execution 时返回 false', () => {
+    engine = new CronEngine()
+    engine.start()
+
+    const result = engine.enqueuePendingExecution('task-1')
+
+    expect(result).toBe(false)
+    expect(engine.getBufferedExecutions()).toHaveLength(0)
+    expect(mockGet).toHaveBeenCalledTimes(1) // 查询过 pending
+  })
+
+  it('存在 pending Execution 时推入 buffer 并返回 true', () => {
+    engine = new CronEngine()
+    engine.start()
+    mockGet.mockReturnValueOnce(makePendingRow({ task_id: 'task-1', scheduled_at: Date.now() + 5_000 }))
+
+    const result = engine.enqueuePendingExecution('task-1')
+
+    expect(result).toBe(true)
+    const buffered = engine.getBufferedExecutions()
+    expect(buffered).toHaveLength(1)
+    expect(buffered[0].id).toBe('pending-exec-1')
+    expect(mockRun).not.toHaveBeenCalled()
+  })
+
+  it('buffer 已满时返回 false 且不再查询 DB', () => {
+    engine = new CronEngine({ bufferSize: 1 })
+    engine.start()
+    mockGet.mockReturnValueOnce(makePendingRow({ id: 'exec-a', task_id: 'task-a' }))
+    expect(engine.enqueuePendingExecution('task-a')).toBe(true)
+    expect(engine.getBufferedExecutions()).toHaveLength(1)
+
+    const result = engine.enqueuePendingExecution('task-b')
+
+    expect(result).toBe(false)
+    expect(mockGet).toHaveBeenCalledTimes(1) // 第二次未查询
+  })
+
+  it('任务已在 buffer 中时返回 false', () => {
+    engine = new CronEngine()
+    engine.start()
+    mockGet.mockReturnValueOnce(makePendingRow({ id: 'exec-a', task_id: 'task-a' }))
+    expect(engine.enqueuePendingExecution('task-a')).toBe(true)
+
+    const result = engine.enqueuePendingExecution('task-a')
+
+    expect(result).toBe(false)
+    expect(engine.getBufferedExecutions()).toHaveLength(1)
+  })
+})
+
+describe('CronEngine - 全流程防毒化（loadTasks → recover → buffer，回归）', () => {
+  let engine: CronEngine
+
+  beforeEach(() => {
+    (globalThis as any).__napcatCronEngine = undefined
+    engine = new CronEngine()
+  })
+
+  afterEach(() => {
+    engine.stop()
+  })
+
+  it('DB 中 schedule_at 为毫秒（旧数据毒化）时，引擎启动后 buffer 中不会出现 16 位时间戳', () => {
+    const now = Date.now()
+    const cronTaskRow = {
+      id: 'legacy-task',
+      user_id: 'user-1',
+      name: '旧数据任务',
+      description: null,
+      schedule_raw: 'at 2033-05-18T03:33:20',
+      schedule_type: 'at',
+      schedule_cron: null,
+      schedule_interval: null,
+      schedule_at: 2_000_000_000_000, // 毫秒级残留数据（毒化源）
+      end_time: null,
+      prompt: '测试',
+      tools: null,
+      output_format: 'text',
+      enabled: 1,
+      created_at: now,
+      updated_at: now,
+    }
+    // loadTasks 读到这条任务；findRunning/findMissed 走默认空表
+    mockAll.mockReturnValueOnce([cronTaskRow] as any)
+    // findPendingByTask → 无 pending；getExecutionById → 读回归一化后的执行行
+    queueCreateFlow(makePendingRow({ id: 'exec-1', task_id: 'legacy-task', scheduled_at: 2_000_000_000_000 }))
+
+    engine.start()
+
+    const buffered = engine.getBufferedExecutions()
+    expect(buffered).toHaveLength(1)
+    expect(buffered[0].taskId).toBe('legacy-task')
+    // 归一化：2e12 毫秒 → 2e9 秒 → 2e12 毫秒（13 位），而非 2e15（16 位）
+    expect(buffered[0].scheduledAt).toBe(2_000_000_000_000)
+    expect(String(buffered[0].scheduledAt).length).toBe(13)
+    // 写入 DB 的 scheduled_at 同样被归一化
+    expect(mockRun.mock.calls[0][3]).toBe(2_000_000_000_000)
+  })
+})
+
 describe('CronEngine - 单例', () => {
+  beforeEach(() => {
+    ;(globalThis as any).__napcatCronEngine = undefined
+  })
+
   it('getCronEngine 应该返回同一个实例', () => {
     const engine1 = getCronEngine()
     const engine2 = getCronEngine()
@@ -233,7 +486,7 @@ describe('CronEngine - rowToTask 类型映射', () => {
   let engine: CronEngine
 
   beforeEach(() => {
-    (globalThis as any).__cronEngine = null
+    (globalThis as any).__napcatCronEngine = undefined
     engine = new CronEngine()
   })
 

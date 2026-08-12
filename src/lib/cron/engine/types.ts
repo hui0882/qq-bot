@@ -105,6 +105,26 @@ export interface Task {
   createdAt: number
   /** 更新时间戳（毫秒） */
   updatedAt: number
+  /** 调度类型（旧格式，API 兼容前端）：'at' 单次 / 'every' 间隔 / 'cron' 循环 */
+  scheduleType?: 'at' | 'every' | 'cron'
+  /** Cron 表达式（旧格式） */
+  scheduleCron?: string
+  /** 执行间隔秒数（旧格式） */
+  scheduleInterval?: number
+  /** 定时执行时间戳（毫秒，旧格式） */
+  scheduleAt?: number
+  /** 下次执行时间戳（毫秒） */
+  nextRunAt?: number
+  /** 上次执行时间戳（毫秒） */
+  lastRunAt?: number
+  /** 上次执行状态 */
+  lastRunStatus?: string
+  /** 上次执行错误信息（如果有） */
+  lastRunError?: string
+  /** 累计执行次数 */
+  runCount?: number
+  /** 是否静默模式（静默时只发送状态提示，不发送 AI 回复） */
+  silent?: boolean
 }
 
 /**

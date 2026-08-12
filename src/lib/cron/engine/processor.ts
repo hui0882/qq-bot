@@ -9,6 +9,7 @@
  */
 
 import type { Task, TaskExecution, MissedPolicy, ExecutionStatus } from './types'
+import { normalizeScheduleAtSeconds } from './units'
 import { db } from '../../db'
 import { logger } from '../../logger'
 
@@ -220,12 +221,14 @@ export function computeNextExecutionTime(task: Task, afterTime: number): number 
   const afterSec = Math.floor(afterTime / 1000)
 
   switch (task.schedule.type) {
-    case 'oneTime':
-      // 一次性任务，如果有 at 且未到期则返回
-      if (task.schedule.at && task.schedule.at > afterSec) {
-        return task.schedule.at * 1000
+    case 'oneTime': {
+      // 任务定义的 at 为秒级（DB schedule_at 一律秒），统一转毫秒与 afterTime（毫秒）比较
+      const atSec = normalizeScheduleAtSeconds(task.schedule.at)
+      if (atSec && atSec * 1000 > afterTime) {
+        return atSec * 1000
       }
       return null
+    }
 
     case 'interval':
       if (!task.schedule.interval || task.schedule.interval <= 0) {
