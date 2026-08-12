@@ -189,19 +189,19 @@ describe('executeCronToolCall', () => {
     expect(result).toContain('一次性任务')
   })
 
-  it('应该支持 interval 类型任务创建', async () => {
+  it('应该支持 interval 类型任务创建（生成 every 调度串）', async () => {
     const { createTask, getUserTaskCount, updateTask } = await import('../store')
     const { getCronEngine } = await import('../engine')
     const { parseSchedule, calculateNextRun } = await import('../parser')
 
     vi.mocked(getUserTaskCount).mockReturnValue(0)
-    vi.mocked(parseSchedule).mockReturnValue({ type: 'at', at: Math.floor(Date.now() / 1000) + 60 })
+    vi.mocked(parseSchedule).mockReturnValue({ type: 'every', interval: 1800 })
     vi.mocked(calculateNextRun).mockReturnValue(Math.floor(Date.now() / 1000) + 60)
     vi.mocked(createTask).mockReturnValue({
       id: 'test-id',
       userId: '123456',
       name: '间隔任务',
-      scheduleRaw: 'at 09:00',
+      scheduleRaw: 'every 30m',
       prompt: '执行间隔任务',
       silent: false,
       enabled: true,
@@ -221,6 +221,191 @@ describe('executeCronToolCall', () => {
 
     expect(result).toContain('定时任务创建成功')
     expect(result).toContain('间隔任务')
+    // 修复：interval_value + interval_unit 应组合为引擎可解析的 every 调度串，而非被丢弃
+    expect(parseSchedule).toHaveBeenCalledWith('every 30m')
+    expect(updateTask).toHaveBeenCalledWith('test-id', expect.objectContaining({
+      scheduleType: 'every',
+      scheduleInterval: 1800,
+    }))
+    // 新任务应注册到引擎（而非无操作 unregisterTask）
+    expect(getCronEngine).toHaveBeenCalled()
+  })
+
+  it('interval 类型缺少 interval_value 时回退为 at first_run', async () => {
+    const { createTask, getUserTaskCount } = await import('../store')
+    const { parseSchedule, calculateNextRun } = await import('../parser')
+
+    vi.mocked(getUserTaskCount).mockReturnValue(0)
+    vi.mocked(parseSchedule).mockReturnValue({ type: 'at', at: Math.floor(Date.now() / 1000) + 3600 })
+    vi.mocked(calculateNextRun).mockReturnValue(Math.floor(Date.now() / 1000) + 3600)
+    mockComputeNextExecutionTime.mockReturnValue(null)
+    vi.mocked(createTask).mockReturnValue({
+      id: 'test-id',
+      userId: '123456',
+      name: '间隔任务',
+      scheduleRaw: 'at 09:00',
+      prompt: '执行间隔任务',
+      silent: false,
+      enabled: true,
+      runCount: 0,
+      retryCount: 0,
+      outputFormat: 'text',
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    } as any)
+
+    const result = await executeCronToolCall('create_scheduled_task', {
+      name: '间隔任务',
+      schedule_type: 'interval',
+      schedule_config: { first_run: '09:00' },
+      prompt: '执行间隔任务',
+    }, '123456')
+
+    expect(result).toContain('定时任务创建成功')
+    expect(parseSchedule).toHaveBeenCalledWith('at 09:00')
+  })
+
+  it('interval 类型缺少全部参数时回退为 at 08:00', async () => {
+    const { createTask, getUserTaskCount } = await import('../store')
+    const { parseSchedule, calculateNextRun } = await import('../parser')
+
+    vi.mocked(getUserTaskCount).mockReturnValue(0)
+    vi.mocked(parseSchedule).mockReturnValue({ type: 'at', at: Math.floor(Date.now() / 1000) + 3600 })
+    vi.mocked(calculateNextRun).mockReturnValue(Math.floor(Date.now() / 1000) + 3600)
+    mockComputeNextExecutionTime.mockReturnValue(null)
+    vi.mocked(createTask).mockReturnValue({
+      id: 'test-id',
+      userId: '123456',
+      name: '间隔任务',
+      scheduleRaw: 'at 08:00',
+      prompt: '执行间隔任务',
+      silent: false,
+      enabled: true,
+      runCount: 0,
+      retryCount: 0,
+      outputFormat: 'text',
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    } as any)
+
+    const result = await executeCronToolCall('create_scheduled_task', {
+      name: '间隔任务',
+      schedule_type: 'interval',
+      schedule_config: {},
+      prompt: '执行间隔任务',
+    }, '123456')
+
+    expect(result).toContain('定时任务创建成功')
+    expect(parseSchedule).toHaveBeenCalledWith('at 08:00')
+  })
+
+  it('创建任务时通过 createFirstExecution 生成首次执行并注册引擎', async () => {
+    const { createTask, getUserTaskCount } = await import('../store')
+    const { getCronEngine } = await import('../engine')
+    const { parseSchedule, calculateNextRun } = await import('../parser')
+
+    // 固定引擎实例，便于断言注册行为
+    const mockRegisterTask = vi.fn()
+    const mockUnregisterTask = vi.fn()
+    vi.mocked(getCronEngine).mockReturnValue({
+      registerTask: mockRegisterTask,
+      unregisterTask: mockUnregisterTask,
+    } as any)
+
+    vi.mocked(getUserTaskCount).mockReturnValue(0)
+    vi.mocked(parseSchedule).mockReturnValue({ type: 'every', interval: 1800 })
+    vi.mocked(calculateNextRun).mockReturnValue(Math.floor(Date.now() / 1000) + 3600)
+    const now = Date.now()
+    mockComputeNextExecutionTime.mockReturnValue(now + 60000)
+    vi.mocked(createTask).mockReturnValue({
+      id: 'test-id',
+      userId: '123456',
+      name: '间隔任务',
+      scheduleRaw: 'every 30m',
+      prompt: '执行间隔任务',
+      silent: false,
+      enabled: true,
+      runCount: 0,
+      retryCount: 0,
+      outputFormat: 'text',
+      createdAt: now,
+      updatedAt: now,
+    } as any)
+
+    const result = await executeCronToolCall('create_scheduled_task', {
+      name: '间隔任务',
+      schedule_type: 'interval',
+      schedule_config: { interval_value: 30, interval_unit: 'm' },
+      prompt: '执行间隔任务',
+    }, '123456')
+
+    expect(result).toContain('定时任务创建成功')
+
+    // createFirstExecution 收到合并了 updates 的任务对象，以及 parsedToScheduleConfig(parsed) 的结果
+    expect(mockComputeNextExecutionTime).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'test-id',
+        schedule: { type: 'interval', interval: 1800 },
+      }),
+      expect.any(Number),
+    )
+
+    // createExecution 参数正确（写 task_executions 表，使任务真正生效）
+    expect(mockCreateExecution).toHaveBeenCalledWith(expect.objectContaining({
+      taskId: 'test-id',
+      userId: '123456',
+      scheduledAt: now + 60000,
+      status: 'pending',
+      scheduleType: 'interval',
+      taskName: '间隔任务',
+      prompt: '执行间隔任务',
+      outputFormat: 'text',
+      attempts: 0,
+      maxRetries: 2,
+    }))
+
+    // 任务注册到引擎（而非无操作 unregisterTask）
+    expect(mockRegisterTask).toHaveBeenCalledWith(expect.objectContaining({ id: 'test-id' }))
+    expect(mockUnregisterTask).not.toHaveBeenCalled()
+  })
+
+  it('恢复 at 类型任务时计算失败应重置为 every 1d', async () => {
+    const { getTask, updateTask } = await import('../store')
+    const { calculateNextRun } = await import('../parser')
+
+    const task = {
+      id: 'test-id',
+      userId: '123456',
+      name: '一次性任务',
+      scheduleType: 'at',
+      scheduleRaw: 'at 09:00',
+      scheduleAt: Math.floor(Date.now() / 1000) - 3600,
+      prompt: '测试提示词',
+      silent: false,
+      enabled: false,
+      runCount: 1,
+      retryCount: 0,
+      outputFormat: 'text',
+      createdAt: 1,
+      updatedAt: 1,
+      nextRunAt: 0,
+    } as any
+    vi.mocked(getTask).mockReturnValue(task)
+
+    // 第一次计算（at 时间已过）抛错 → 应回退 every 1d；第二次计算（every 1d）成功
+    vi.mocked(calculateNextRun)
+      .mockImplementationOnce(() => { throw new Error('时间已过') })
+      .mockReturnValue(Math.floor(Date.now() / 1000) + 86400)
+
+    const result = await executeCronToolCall('resume_scheduled_task', { task_id: 'test-id' }, '123456')
+
+    expect(result).toContain('已恢复任务')
+    expect(updateTask).toHaveBeenCalledWith('test-id', expect.objectContaining({
+      enabled: true,
+      scheduleType: 'every',
+      scheduleInterval: 86400,
+      scheduleAt: undefined,
+    }))
   })
 
   it('应该拒绝不支持的 schedule_type', async () => {
@@ -301,6 +486,25 @@ describe('createFirstExecution', () => {
     vi.clearAllMocks()
   })
 
+  function makeTask(overrides: Record<string, any> = {}): any {
+    return {
+      id: 'test-id',
+      userId: '123456',
+      name: '测试任务',
+      scheduleRaw: 'every 30m',
+      prompt: '测试提示词',
+      tools: ['tool-a'],
+      silent: false,
+      enabled: true,
+      runCount: 0,
+      retryCount: 0,
+      outputFormat: 'text',
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      ...overrides,
+    }
+  }
+
   it('应该创建第一条 Execution 并注册到引擎', async () => {
     const { getCronEngine } = await import('../engine')
     const mockRegisterTask = vi.fn()
@@ -312,25 +516,67 @@ describe('createFirstExecution', () => {
     mockComputeNextExecutionTime.mockReturnValue(Date.now() + 60000)
     mockCreateExecution.mockReturnValue('exec-id')
 
-    const task = {
-      id: 'test-id',
-      userId: '123456',
-      name: '测试任务',
-      scheduleRaw: '0 9 * * *',
-      prompt: '测试提示词',
-      silent: false,
-      enabled: true,
-      runCount: 0,
-      retryCount: 0,
-      outputFormat: 'text',
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    } as any
-
+    const task = makeTask({ scheduleRaw: '0 9 * * *' })
     const parsedSchedule = { type: 'cron', expression: '0 9 * * *' } as any
 
     createFirstExecution(task, parsedSchedule)
 
+    expect(mockRegisterTask).toHaveBeenCalled()
+  })
+
+  it('computeNextExecutionTime 有值时 createExecution 参数正确且注册引擎', async () => {
+    const { getCronEngine } = await import('../engine')
+    const mockRegisterTask = vi.fn()
+    vi.mocked(getCronEngine).mockReturnValue({
+      registerTask: mockRegisterTask,
+      unregisterTask: vi.fn(),
+    } as any)
+
+    const now = Date.now()
+    mockComputeNextExecutionTime.mockReturnValue(now + 120000)
+    mockCreateExecution.mockReturnValue('exec-id')
+
+    const task = makeTask()
+    const parsedSchedule = { type: 'interval', interval: 1800 } as any
+
+    createFirstExecution(task, parsedSchedule)
+
+    // createExecution 收到完整的执行记录参数（写 task_executions 表）
+    expect(mockCreateExecution).toHaveBeenCalledWith(expect.objectContaining({
+      taskId: 'test-id',
+      userId: '123456',
+      scheduledAt: now + 120000,
+      status: 'pending',
+      scheduleType: 'interval',
+      taskName: '测试任务',
+      prompt: '测试提示词',
+      tools: JSON.stringify(['tool-a']),
+      outputFormat: 'text',
+      attempts: 0,
+      maxRetries: 2,
+    }))
+
+    // 引擎收到带 parsedSchedule 的任务
+    expect(mockRegisterTask).toHaveBeenCalledWith(expect.objectContaining({
+      id: 'test-id',
+      schedule: { type: 'interval', interval: 1800 },
+    }))
+  })
+
+  it('computeNextExecutionTime 返回 null 时不创建 Execution 但仍注册引擎', async () => {
+    const { getCronEngine } = await import('../engine')
+    const mockRegisterTask = vi.fn()
+    vi.mocked(getCronEngine).mockReturnValue({
+      registerTask: mockRegisterTask,
+      unregisterTask: vi.fn(),
+    } as any)
+
+    // 首次执行时间已过（如 at 类型时间已过）→ 不产生执行记录
+    mockComputeNextExecutionTime.mockReturnValue(null)
+
+    createFirstExecution(makeTask(), { type: 'interval', interval: 1800 } as any)
+
+    expect(mockCreateExecution).not.toHaveBeenCalled()
     expect(mockRegisterTask).toHaveBeenCalled()
   })
 })

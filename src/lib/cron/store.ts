@@ -147,8 +147,48 @@ export function initCronTables(): void {
 
   console.log('[Cron Store] Tables initialized')
 
+  // 旧库迁移：补齐重构后新增的列（如 end_time、silent、retry_count 等）。
+  // SQLite 的 ALTER TABLE ADD COLUMN 不能添加 PRIMARY KEY / UNIQUE / 无默认值的 NOT NULL 列，
+  // 因此这里仅检查并补齐可安全添加的列。
+  migrateCronTasksColumns()
+
   // 初始化 task_executions 表（新架构）
   initTaskExecutionsTable()
+}
+
+/** 当前 schema 中可能为旧库缺失、且可安全 ALTER 添加的列（name -> DDL） */
+const MIGRATION_COLUMNS: Array<{ name: string; ddl: string }> = [
+  { name: 'description', ddl: 'TEXT' },
+  { name: 'schedule_cron', ddl: 'TEXT' },
+  { name: 'schedule_interval', ddl: 'INTEGER' },
+  { name: 'schedule_at', ddl: 'INTEGER' },
+  { name: 'end_time', ddl: 'INTEGER' },
+  { name: 'output_format', ddl: "TEXT DEFAULT 'text'" },
+  { name: 'next_run_at', ddl: 'INTEGER' },
+  { name: 'last_run_at', ddl: 'INTEGER' },
+  { name: 'last_run_status', ddl: 'TEXT' },
+  { name: 'last_run_error', ddl: 'TEXT' },
+  { name: 'run_count', ddl: 'INTEGER DEFAULT 0' },
+  { name: 'silent', ddl: 'INTEGER DEFAULT 0' },
+  { name: 'retry_count', ddl: 'INTEGER DEFAULT 0' },
+]
+
+/**
+ * 检查 cron_tasks 表已有列，缺失的列通过 ALTER TABLE ADD COLUMN 补齐。
+ *
+ * 防止服务器旧库（缺少重构后新增的列）执行 updateTask 时
+ * 因 "no such column" 报错（如提交 1b467b0 新增的 end_time 列）。
+ */
+function migrateCronTasksColumns(): void {
+  const columns = db.pragma('table_info(cron_tasks)') as Array<{ name: string }>
+  const existing = new Set(columns.map((col) => col.name))
+
+  for (const col of MIGRATION_COLUMNS) {
+    if (!existing.has(col.name)) {
+      db.exec(`ALTER TABLE cron_tasks ADD COLUMN ${col.name} ${col.ddl}`)
+      console.log(`[Cron Store] cron_tasks 新增列: ${col.name}`)
+    }
+  }
 }
 
 // ============ CRUD 操作 ============
