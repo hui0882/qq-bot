@@ -45,13 +45,35 @@
 
 ### 流程设计
 
+#### 并行调度规则（主 Agent 自主决策）
+
+主 Agent 根据需求规模自主决定启动的 Agent 数量，不必局限于串行执行：
+
+| 场景 | 并行度 |
+|------|--------|
+| 单一功能点/小改动 | 1 个 developer，串行 |
+| 多个独立模块（文件不重叠） | 按模块并行多个 developer |
+| 多个独立 bug | 并行修复 |
+| 单元测试 | 按模块并行多个 unit-tester |
+| 全链路测试 | 串行（共享运行环境） |
+
+并行必须同时满足以下条件：
+1. requirement-analyzer 报告已明确拆分边界（互不依赖的子任务）
+2. 文件所有权不重叠 — 主 Agent 启动时为每个 agent 划定文件范围，禁止越界
+3. 依赖模块先启动，或接口先行约定
+
+主 Agent 协调职责：
+- 为每个 agent 划定文件范围，禁止越界修改
+- 汇总各 agent 报告；文件冲突时后完成者适配先完成者
+- 统一编译自测与合并测试在最后完成的 agent 之后执行
+
 #### 新功能开发流程
 
 ```
 用户需求
   → 主 Agent 启动 requirement-analyzer Agent 分析需求
   → 主 Agent 创建分支
-  → 主 Agent 启动 developer Agent 开发（包含编译自测）
+  → 主 Agent 启动一个或多个 developer Agent 并行开发（包含编译自测，遵循并行调度规则）
   → 主 Agent 启动 unit-tester Agent 编写并运行单元测试
   → 主 Agent 启动 post-dev-tester Agent 全链路测试
   → 主 Agent 审查结果，交由用户确认
@@ -66,7 +88,7 @@
   → 主 Agent 启动 log-reader Agent 查看日志
   → 主 Agent 把日志结果提交给 requirement-analyzer Agent 定位问题
   → 主 Agent 创建分支
-  → 主 Agent 启动 developer Agent 修复（包含编译自测）
+  → 主 Agent 启动一个或多个 developer Agent 并行修复（包含编译自测，多个独立 bug 可并行）
   → 主 Agent 启动 unit-tester Agent 编写回归测试
   → 主 Agent 启动 post-dev-tester Agent 全链路测试
   → 主 Agent 审查结果，交由用户确认
@@ -100,6 +122,8 @@ Agent(subagent_type="post-dev-tester", prompt="测试以下功能：...")
 
 # 日志分析
 Agent(subagent_type="log-reader", prompt="查看以下日志：...")
+
+# 并行：主 Agent 可同时启动多个同类型 Agent（如多个 developer 并行开发不同模块）
 ```
 
 ### 分支保护规则
