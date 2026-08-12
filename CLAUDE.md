@@ -2,7 +2,9 @@
 
 ## 多 Agent 开发流程
 
-本项目采用多 Agent 协作开发流程。**主 Agent 仅作为协调者和调度者**，负责与各 subagent 沟通、分配任务和审查结果，**不得直接执行任何开发、测试或代码修改操作**。
+本项目采用多 Agent 协作开发流程。**需求按规模分级（S/M/L）：小需求（S 级）由主 Agent 直接开发，中大型需求（M/L 级）走子 Agent 流水线。**
+
+对于 S 级需求，**主 Agent 直接开发**；对于 M/L 级需求，主 Agent 仅作为协调者和调度者，负责与各 subagent 沟通、分配任务和审查结果，**不得直接执行任何开发、测试或代码修改操作**。
 
 ---
 
@@ -10,8 +12,8 @@
 
 | Agent | 配置文件 | 用途 | subagent_type |
 |-------|----------|------|---------------|
-| 主 Agent | 无（当前会话） | **协调调度**，与 subagent 沟通 | 无 |
-| 需求分析 Agent | `.claude/agents/requirement-analyzer.md` | 需求拆分、问题定位 | `requirement-analyzer` |
+| 主 Agent | 无（当前会话） | **协调调度**，与 subagent 沟通；S 级需求直接开发 | 无 |
+| 需求分析 Agent | `.claude/agents/requirement-analyzer.md` | 需求拆分、问题定位、规模分级建议 | `requirement-analyzer` |
 | 开发 Agent | `.claude/agents/developer.md` | 代码开发、bug 修复、编译自测 | `developer` |
 | 单元测试 Agent | `.claude/agents/unit-tester.md` | 编写和运行单元测试 | `unit-tester` |
 | 测试 Agent | `.claude/agents/post-dev-tester.md` | 全链路测试（模拟用户消息） | `post-dev-tester` |
@@ -19,21 +21,40 @@
 
 ---
 
+### 需求规模分级（主 Agent 自判）
+
+主 Agent 收到需求后，**第一轮先按以下清单自判规模**，无需启动额外 agent：
+
+| 级别 | 判定条件 | 开发方式 |
+|------|----------|----------|
+| **S 级**（快车道） | 同时满足：① 改动 ≤ 2 个文件（不含公共模块/类型定义/配置文件）；② 预估改动 ≤ 100 行；③ 不涉及新依赖、数据库 schema/迁移、路由新增或变更（middleware/route.ts）、公共 API 签名、跨模块影响；④ 需求明确无歧义 | 主 Agent 直接开发 |
+| **M 级**（轻量流水线） | 不满足 S 级，但改动局限在单个模块内 | 1 个 developer + 主 Agent 跑相关单测 |
+| **L 级**（完整流水线） | 跨模块 / 新功能 / 涉及 DB·路由·依赖 / 需要全链路测试 | 完整子 Agent 流水线 |
+
+判定规则：
+- **拿不准时启动 requirement-analyzer** — 由其输出需求拆分 + 规模分级建议（M/L）
+- **S 级判定错误**（开发中发现涉及面超预期）→ 立即停下向用户说明，升级为 M/L 流程
+
+---
+
 ### 主 Agent 职责（严格限制）
 
-**主 Agent 的唯一职责是协调和调度各 subagent，不执行任何实际操作。**
+**对于 S 级需求，主 Agent 直接开发；对于 M/L 级需求，主 Agent 的唯一职责是协调和调度各 subagent，不执行任何实际操作。**
 
 #### 主 Agent 禁止的操作（重要）
 
-- ❌ **绝对不能直接编写或修改代码文件**
-- ❌ **绝对不能直接运行开发、构建或测试命令**
-- ❌ **绝对不能直接执行任何 bash 命令进行开发工作**
-- ❌ **绝对不能直接操作文件系统进行开发**
+- ❌ **S 级以外**绝对不能直接编写或修改代码文件
+- ❌ **S 级以外**绝对不能直接运行开发、构建或测试命令
+- ❌ **S 级以外**绝对不能直接执行任何 bash 命令进行开发工作
+- ❌ **S 级以外**绝对不能直接操作文件系统进行开发
+- ❌ 绝对不能直接运行测试脚本进行全链路测试（任何级别）
 - ❌ **绝对不能在没有用户确认的情况下合并分支到 main**
 - ❌ **绝对不能在没有用户确认的情况下推送到远程仓库**
 
-#### 主 Agent 允许的操作（仅限协调）
+#### 主 Agent 允许的操作
 
+- ✅ **S 级需求：直接编写/修改代码**（按上述清单判定，≤ 2 文件、≤ 100 行）
+- ✅ **S 级需求：运行 `bun run build` 和相关单测验证**（vitest 指定文件）
 - ✅ **启动 subagent**（使用正确的 subagent_type 分配任务）
 - ✅ **审查 subagent 的结果**
 - ✅ **将结果在 subagent 之间传递**（如将分析结果传给开发 Agent）
@@ -48,7 +69,7 @@
 **开发 Agent 在完成代码开发后，必须进行编译检查。**
 
 #### 编译自测职责
-- 完成开发任务后，运行 `npm run build` 确保编译通过
+- 完成开发任务后，运行 `bun run build` 确保编译通过
 - 确保没有 TypeScript 类型错误
 - 确保新增代码不会破坏现有功能
 - 编译失败时自行修复，直到编译通过
@@ -112,56 +133,61 @@
 
 | 操作 | 执行者 | 说明 |
 |------|--------|------|
-| 需求分析 | 需求分析 Agent | 使用 `subagent_type="requirement-analyzer"` |
-| 问题定位 | 需求分析 Agent | 结合代码和日志定位问题 |
-| 代码开发 | 开发 Agent | 使用 `subagent_type="developer"` |
-| Bug 修复 | 开发 Agent | 使用 `subagent_type="developer"` |
-| 编译自测 | **开发 Agent** | npm run build + lint，确保编译通过 |
-| 单元测试 | 单元测试 Agent | 使用 `subagent_type="unit-tester"`，编写并运行 Vitest 测试 |
-| 全链路测试 | 测试 Agent | 使用 `subagent_type="post-dev-tester"`，只能模拟消息 |
+| 需求分析（M/L 级） | 需求分析 Agent | 使用 `subagent_type="requirement-analyzer"` |
+| 问题定位（M/L 级） | 需求分析 Agent | 结合代码和日志定位问题 |
+| 代码开发（M/L 级） | 开发 Agent | 使用 `subagent_type="developer"` |
+| Bug 修复（M/L 级） | 开发 Agent | 使用 `subagent_type="developer"` |
+| 编译自测（M/L 级） | **开发 Agent** | bun run build + lint，确保编译通过 |
+| 单元测试（M/L 级） | 单元测试 Agent | 使用 `subagent_type="unit-tester"`，编写并运行 Vitest 测试 |
+| 全链路测试（L 级） | 测试 Agent | 使用 `subagent_type="post-dev-tester"`，只能模拟消息 |
 | 日志分析 | 日志 Agent | 使用 `subagent_type="log-reader"` |
-| 协调调度 | **主 Agent** | 只做协调，管理返工计数 |
+| S 级需求开发 | **主 Agent** | 直接开发 + `bun run build` + 相关单测，按规模清单判定 |
+| 协调调度（M/L 级） | **主 Agent** | 只做协调，管理返工计数 |
 
 ---
 
 ### 流程设计
 
-#### 新功能开发流程
+#### 新功能开发流程（按规模分级）
 
 ```
 用户需求
-  → 主 Agent 启动 requirement-analyzer Agent 分析需求
-  → 主 Agent 创建分支
-  → 主 Agent 启动 developer Agent 开发（编译自测）
-  → 主 Agent 启动 unit-tester Agent 编写并运行单元测试
-  → 主 Agent 启动 post-dev-tester Agent 全链路测试（模拟消息方式）
-  → 主 Agent 审查结果，交由用户确认
-  → 用户确认后，主 Agent 合并分支并推送
+  → 主 Agent 按规模清单自判
+    ├─ S 级：建分支 → 主 Agent 直接开发 → bun run build + 相关单测 → 用户确认 → 合并推送
+    ├─ M 级：requirement-analyzer 出拆分与规模建议 → 建分支
+    │        → 1 个 developer 开发（含编译自测）→ 主 Agent 跑相关单测（必要时 unit-tester 补测试）
+    │        → 用户确认 → 合并推送
+    └─ L 级：requirement-analyzer 分析需求 → 建分支
+             → 一个或多个 developer 并行开发（含编译自测，遵循并行调度规则）
+             → unit-tester 编写并运行单元测试 → post-dev-tester 全链路测试（模拟消息方式）
+             → 用户确认 → 合并推送
 ```
 
-#### Bug 修复流程
+#### Bug 修复流程（按规模分级）
 
 ```
 用户报告 Bug
-  → 主 Agent 启动 requirement-analyzer Agent 分析问题
-  → 主 Agent 启动 log-reader Agent 查看日志
-  → 主 Agent 把日志结果提交给 requirement-analyzer Agent 定位问题
-  → 主 Agent 创建分支
-  → 主 Agent 启动 developer Agent 修复（编译自测）
-  → 主 Agent 启动 unit-tester Agent 编写回归测试
-  → 主 Agent 启动 post-dev-tester Agent 全链路测试（模拟消息方式）
-  → 主 Agent 审查结果，交由用户确认
-  → 用户确认后，主 Agent 合并分支并推送
+  → 主 Agent 按规模清单自判
+    ├─ S 级：建分支 → 主 Agent 直接修复 → bun run build + 相关单测 → 用户确认 → 合并推送
+    ├─ M 级：log-reader 查看日志（必要时）→ requirement-analyzer 定位问题 → 建分支
+    │        → 1 个 developer 修复（含编译自测）→ 主 Agent 跑相关单测（必要时 unit-tester 补回归测试）
+    │        → 用户确认 → 合并推送
+    └─ L 级：log-reader 查看日志 → requirement-analyzer 定位问题 → 建分支
+             → 一个或多个 developer 并行修复（含编译自测，多个独立 bug 可并行）
+             → unit-tester 编写回归测试 → post-dev-tester 全链路测试（模拟消息方式）
+             → 用户确认 → 合并推送
 ```
 
 #### 测试失败修复循环
 
 ```
 测试失败（单元测试或全链路测试）
-  → 主 Agent 把测试报告提交给 requirement-analyzer Agent 分析
-  → 主 Agent 把分析结果提交给 developer Agent 修复
-  → 主 Agent 重新启动失败的测试 Agent 验证
-  → 主 Agent 控制总返工次数，最多 3 轮，仍有问题则告知用户
+  → S 级：主 Agent 直接修复（最多 3 次，仍有问题则告知用户）
+  → M/L 级：
+      主 Agent 把测试报告提交给 requirement-analyzer Agent 分析
+      → 主 Agent 把分析结果提交给 developer Agent 修复
+      → 主 Agent 重新启动失败的测试 Agent 验证
+      → 主 Agent 控制总返工次数，最多 3 轮，仍有问题则告知用户
 ```
 
 注意：返工计数由主 Agent 在上下文中跟踪，不再依赖各子 Agent 自行计数。
@@ -174,8 +200,8 @@
 # 需求分析
 Agent(subagent_type="requirement-analyzer", prompt="分析以下需求：...")
 
-# 代码开发（编译自测）
-Agent(subagent_type="developer", prompt="实现以下功能：...\n\n完成后请进行编译自测（npm run build）。")
+# 代码开发（编译自测，M/L 级）
+Agent(subagent_type="developer", prompt="实现以下功能：...\n\n完成后请进行编译自测（bun run build）。")
 
 # 单元测试
 Agent(subagent_type="unit-tester", prompt="为以下代码修改编写单元测试：\n\n[开发 Agent 的报告内容]\n\n请根据修改内容和测试建议编写 Vitest 测试并运行。")
