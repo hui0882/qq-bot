@@ -24,8 +24,8 @@
 
 ### 环境要求
 
-- Node.js 18+
-- npm 9+
+- Bun 1.x（[安装 bun](https://bun.sh/docs/installation)）
+- Node.js 18+（better-sqlite3 为原生模块，由 bun 通过 Node.js 兼容层加载）
 
 ### 安装
 
@@ -35,7 +35,7 @@ git clone <repo-url>
 cd napcatQQ
 
 # 安装依赖
-npm install
+bun install
 
 # 配置
 cp data/config.template.json data/config.json
@@ -65,7 +65,7 @@ cp data/config.template.json data/config.json
 ### 启动
 
 ```bash
-npm run dev
+bun run dev
 ```
 
 访问 `http://localhost:8090`，输入配置的 auth token 登录。
@@ -197,9 +197,9 @@ Push 到 `main` 分支自动触发部署：
 # 服务器上
 git clone <repo-url> ~/qq_bot
 cd qq_bot
-npm install
-npm run build
-pm2 start npm --name napcat-platform -- start
+bun install
+bun run build
+pm2 start bun --name napcat-platform -- run start
 ```
 
 ## 文档
