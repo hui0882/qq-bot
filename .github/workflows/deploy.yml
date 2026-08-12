@@ -24,7 +24,14 @@ jobs:
 
             # 加载环境变量
             source ~/.bashrc 2>/dev/null || source ~/.profile 2>/dev/null || true
-            export PATH="$HOME/.npm-global/bin:$HOME/.local/bin:/usr/local/bin:$PATH"
+            export PATH="$HOME/.npm-global/bin:$HOME/.local/bin:$HOME/.bun/bin:/usr/local/bin:$PATH"
+
+            # 检测并安装 bun（幂等，服务器已有 bun 则跳过）
+            if ! command -v bun &> /dev/null; then
+              echo "安装 bun..."
+              curl -fsSL https://bun.sh/install | bash
+              export PATH="$HOME/.bun/bin:$PATH"
+            fi
 
             # 进入部署目录
             DEPLOY_DIR="${{ secrets.DEPLOY_PATH }}"
@@ -35,10 +42,10 @@ jobs:
             git pull origin main || { echo "❌ 拉取代码失败"; exit 1; }
 
             echo "安装依赖..."
-            npm ci || { echo "❌ 安装依赖失败"; exit 1; }
+            bun install --frozen-lockfile || { echo "❌ 安装依赖失败"; exit 1; }
 
             echo "构建项目..."
-            npm run build || { echo "❌ 构建失败"; exit 1; }
+            bun run build || { echo "❌ 构建失败"; exit 1; }
 
             # 启动/重启服务
             if command -v pm2 &> /dev/null && pm2 list 2>/dev/null | grep -q "napcat-platform"; then
@@ -46,7 +53,7 @@ jobs:
               pm2 restart napcat-platform || { echo "❌ 重启服务失败"; exit 1; }
             else
               echo "首次启动服务..."
-              pm2 start npm --name napcat-platform -- start || { echo "❌ 启动服务失败"; exit 1; }
+              pm2 start bun --name napcat-platform -- run start || { echo "❌ 启动服务失败"; exit 1; }
               pm2 save
             fi
 
