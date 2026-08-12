@@ -25,7 +25,7 @@
 ### 环境要求
 
 - Bun 1.x（[安装 bun](https://bun.sh/docs/installation)）
-- Node.js 18+（better-sqlite3 为原生模块，由 bun 通过 Node.js 兼容层加载）
+- Node.js 22+（推荐用 [nvm](https://github.com/nvm-sh/nvm) 安装并在项目目录执行 `nvm use`，见 `.nvmrc`。better-sqlite3 为原生模块，Node 主版本必须与 `.nvmrc` 一致，否则会因 ABI 不匹配加载失败）
 
 ### 安装
 
