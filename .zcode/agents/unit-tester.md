@@ -1,7 +1,6 @@
 ---
 name: unit-tester
 description: NapCat 单元测试 agent — 根据开发报告编写并运行单元测试
-model: sonnet
 tools:
   - Read
   - Write

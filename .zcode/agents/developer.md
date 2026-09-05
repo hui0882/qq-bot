@@ -1,7 +1,6 @@
 ---
 name: developer
 description: NapCat 代码开发 agent — 根据需求或问题描述进行代码开发、修复和编译自测
-model: sonnet
 tools:
   - Read
   - Write

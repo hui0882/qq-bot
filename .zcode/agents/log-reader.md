@@ -1,7 +1,6 @@
 ---
 name: log-reader
 description: NapCat 日志读取分析 agent — 只读日志，总结工具调用、异常和关键事件
-model: haiku
 tools:
   - Read
   - Grep
