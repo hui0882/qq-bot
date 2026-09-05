@@ -8,11 +8,23 @@
 
 | Agent | 配置文件 | 用途 | subagent_type |
 |-------|----------|------|---------------|
-| 需求分析 Agent | `.claude/agents/requirement-analyzer.md` | 需求拆分、问题定位、规模分级建议 | `requirement-analyzer` |
-| 开发 Agent | `.claude/agents/developer.md` | 代码开发、bug 修复 | `developer` |
-| 单元测试 Agent | `.claude/agents/unit-tester.md` | 编写和运行单元测试 | `unit-tester` |
-| 测试 Agent | `.claude/agents/post-dev-tester.md` | 全链路测试 | `post-dev-tester` |
-| 日志 Agent | `.claude/agents/log-reader.md` | 日志读取分析 | `log-reader` |
+| 需求分析 Agent | `.zcode/agents/requirement-analyzer.md` | 需求拆分、问题定位、规模分级建议 | `requirement-analyzer` |
+| 开发 Agent | `.zcode/agents/developer.md` | 代码开发、bug 修复 | `developer` |
+| 单元测试 Agent | `.zcode/agents/unit-tester.md` | 编写和运行单元测试 | `unit-tester` |
+| 测试 Agent | `.zcode/agents/post-dev-tester.md` | 全链路测试 | `post-dev-tester` |
+| 日志 Agent | `.zcode/agents/log-reader.md` | 日志读取分析 | `log-reader` |
+
+### 子 Agent 模型说明
+
+子 Agent **不专门配置模型**（各配置文件不写 `model` 字段），统一跟随当前会话使用的模型；主 Agent 模型由用户自行配置，子 Agent 自动与主 Agent 保持一致。
+
+### 全链路测试 Agent 规范（黑盒测试）
+
+post-dev-tester 是**黑盒测试 agent**：它不阅读任何源代码，只知道本次开发的内容。
+
+- 派发任务时，主 Agent 必须把**需求、测试场景、模拟消息、预期结果、日志验证方式**全部写进派发 prompt（模板见「启动子 Agent 示例」）
+- post-dev-tester 只做两件事：跑 `scripts/send-test-message.sh` 脚本 + 查 `data/logs/` 日志，然后出具测试报告
+- 与 log-reader 的边界：post-dev-tester 只看与本次测试相关的日志并出报告；log-reader 负责一般性的日志读取分析
 
 ### 需求规模分级（主 Agent 自判）
 
@@ -39,7 +51,7 @@
 | 代码开发（M/L 级） | 开发 Agent | 使用 `subagent_type="developer"` |
 | Bug 修复（M/L 级） | 开发 Agent | 使用 `subagent_type="developer"` |
 | 单元测试（M/L 级） | 单元测试 Agent | 使用 `subagent_type="unit-tester"` |
-| 全链路测试（L 级） | 测试 Agent | 使用 `subagent_type="post-dev-tester"` |
+| 全链路测试（L 级） | 测试 Agent | 使用 `subagent_type="post-dev-tester"`，黑盒测试（派发须自包含测试要点） |
 
 #### 主 Agent 禁止的操作
 
@@ -138,8 +150,23 @@ Agent(subagent_type="developer", prompt="实现以下功能：...")
 # 单元测试
 Agent(subagent_type="unit-tester", prompt="为以下代码修改编写单元测试：...")
 
-# 全链路测试
-Agent(subagent_type="post-dev-tester", prompt="测试以下功能：...")
+# 全链路测试（黑盒：必须自包含全部测试要点，测试 agent 不读代码）
+Agent(subagent_type="post-dev-tester", prompt="请按以下测试任务执行黑盒测试（只跑 scripts/send-test-message.sh + 查 data/logs/ 日志，禁止读源码）：
+
+## 测试任务
+
+### 测试功能
+[本次开发/修复的功能名称]
+
+### 测试场景1
+- **模拟消息：** [发送的消息内容]
+- **预期结果：** [系统的预期行为]
+- **日志验证：** [通过日志中的哪些字段验证]
+
+### 测试场景2
+- **模拟消息：** [发送的消息内容]
+- **预期结果：** [系统的预期行为]
+- **日志验证：** [通过日志中的哪些字段验证]")
 
 # 日志分析
 Agent(subagent_type="log-reader", prompt="查看以下日志：...")

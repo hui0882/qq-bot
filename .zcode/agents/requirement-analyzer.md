@@ -1,7 +1,6 @@
 ---
 name: requirement-analyzer
 description: NapCat 需求分析和问题定位 agent — 需求拆分、理解、问题分析、规模分级建议
-model: sonnet
 tools:
   - Read
   - Grep
