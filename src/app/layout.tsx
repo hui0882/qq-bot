@@ -6,7 +6,7 @@ import './globals.css'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'NapCat Platform',
+  title: '😠 NapCat 管理平台',
   description: 'NapCat QQ 管理平台',
 }
 

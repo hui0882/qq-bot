@@ -2,6 +2,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { UserQueryPanel } from '@/components/user-query-panel'
 
 interface Friend {
   user_id: number
@@ -25,7 +26,7 @@ interface GroupMember {
   shut_up_timestamp?: number
 }
 
-type Tab = 'friends' | 'groups' | 'requests'
+type Tab = 'friends' | 'groups' | 'requests' | 'users'
 
 interface ActionDef {
   label: string
@@ -354,8 +355,17 @@ export default function ContactsPage() {
         >
           好友请求 {pendingRequests.length > 0 && <span className="ml-1 rounded-full bg-destructive px-1.5 py-0.5 text-xs text-destructive-foreground">{pendingRequests.length}</span>}
         </button>
+        <button
+          onClick={() => { setTab('users'); setSelectedGroup(null) }}
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+            tab === 'users' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground'
+          }`}
+        >
+          用户查询
+        </button>
       </div>
 
+      {tab !== 'users' && (
       <div className="flex gap-4">
         <input
           type="text"
@@ -375,9 +385,13 @@ export default function ContactsPage() {
           刷新
         </button>
       </div>
+      )}
 
       {loading && <p className="text-muted-foreground">加载中...</p>}
 
+      {tab === 'users' ? (
+        <UserQueryPanel />
+      ) : (
       <div className="flex gap-6">
         <div className="flex-1">
           {tab === 'requests' ? (
@@ -543,6 +557,7 @@ export default function ContactsPage() {
           </div>
         )}
       </div>
+      )}
 
       {/* Action Dialog */}
       {actionTarget && (
