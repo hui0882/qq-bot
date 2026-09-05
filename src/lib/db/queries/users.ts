@@ -12,6 +12,7 @@ import { db } from '../index'
 
 export interface User {
   qq_id: string
+  nickname: string | null
   created_at: number
   updated_at: number
 }
@@ -29,9 +30,11 @@ export interface UserSetting {
  * 获取所有用户
  */
 export function getAllUsers(): User[] {
-  return db.prepare(
+  const rows = db.prepare(
     'SELECT * FROM users ORDER BY updated_at DESC'
-  ).all() as User[]
+  ).all() as Array<Omit<User, 'nickname'> & { nickname?: string | null }>
+
+  return rows.map((row) => ({ ...row, nickname: row.nickname ?? null }))
 }
 
 /**
@@ -40,10 +43,10 @@ export function getAllUsers(): User[] {
 export function getOrCreateUser(qqId: string): User {
   const existing = db.prepare(
     'SELECT * FROM users WHERE qq_id = ?'
-  ).get(qqId) as User | undefined
+  ).get(qqId) as (Omit<User, 'nickname'> & { nickname?: string | null }) | undefined
 
   if (existing) {
-    return existing
+    return { ...existing, nickname: existing.nickname ?? null }
   }
 
   const now = Date.now()
@@ -51,7 +54,74 @@ export function getOrCreateUser(qqId: string): User {
     'INSERT INTO users (qq_id, created_at, updated_at) VALUES (?, ?, ?)'
   ).run(qqId, now, now)
 
-  return { qq_id: qqId, created_at: now, updated_at: now }
+  return { qq_id: qqId, nickname: null, created_at: now, updated_at: now }
+}
+
+// ============ 用户昵称 ============
+
+/**
+ * 获取用户昵称（仅本地缓存，不触发网络请求）
+ */
+export function getNickname(qqId: string): string | null {
+  const result = db.prepare(
+    'SELECT nickname FROM users WHERE qq_id = ?'
+  ).get(qqId) as { nickname: string | null } | undefined
+
+  return result?.nickname ?? null
+}
+
+/**
+ * 设置用户昵称（写入本地缓存），用户不存在时先创建
+ */
+export function setNickname(qqId: string, nickname: string): void {
+  const result = db.prepare(
+    'UPDATE users SET nickname = ?, updated_at = ? WHERE qq_id = ?'
+  ).run(nickname, Date.now(), qqId)
+
+  if (result.changes === 0) {
+    getOrCreateUser(qqId)
+    db.prepare(
+      'UPDATE users SET nickname = ?, updated_at = ? WHERE qq_id = ?'
+    ).run(nickname, Date.now(), qqId)
+  }
+}
+
+/**
+ * 获取昵称：本地缓存优先，为空时通过 WS 向 NapCat 拉取并回写缓存。
+ * WS 未连接或拉取失败时返回 null（不写库，避免把失败结果落库）。
+ */
+export async function getOrFetchNickname(qqId: string): Promise<string | null> {
+  const cached = getNickname(qqId)
+  if (cached) return cached
+
+  // 动态导入 napcat-ws，避免循环依赖：
+  // config -> db/init -> db/migrate -> queries/users -> napcat-ws -> config
+  const { napcatWS } = await import('@/lib/napcat-ws')
+
+  if (napcatWS.getStatus() === 'connected') {
+    try {
+      const response = await napcatWS.sendAction('get_stranger_info', {
+        user_id: String(qqId),
+      })
+
+      if (
+        response.status === 'ok' &&
+        response.data &&
+        typeof response.data === 'object' &&
+        'nickname' in response.data
+      ) {
+        const nickname = (response.data as { nickname?: unknown }).nickname
+        if (typeof nickname === 'string' && nickname.trim().length > 0) {
+          setNickname(qqId, nickname)
+          return nickname
+        }
+      }
+    } catch (err) {
+      console.error('[DB] Failed to fetch nickname via WS:', err)
+    }
+  }
+
+  return null
 }
 
 /**

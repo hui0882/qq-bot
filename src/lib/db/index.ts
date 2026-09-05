@@ -83,10 +83,22 @@ export function initDatabase(): void {
   database.exec(`
     CREATE TABLE IF NOT EXISTS users (
       qq_id TEXT PRIMARY KEY,
+      nickname TEXT,
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
     )
   `)
+
+  // 1.1 幂等迁移：为既有数据库补充 nickname 列（重复启动安全）
+  try {
+    const userColumns = database.pragma('table_info(users)') as { name: string }[]
+    if (!userColumns.some((col) => col.name === 'nickname')) {
+      database.exec('ALTER TABLE users ADD COLUMN nickname TEXT')
+      console.log('[DB] Migration: added nickname column to users table')
+    }
+  } catch (err) {
+    console.error('[DB] Migration failed for users.nickname:', err)
+  }
 
   // 2. 用户设置表（EAV 模式，无限扩展）
   database.exec(`
