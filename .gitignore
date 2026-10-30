@@ -25,8 +25,14 @@
 Thumbs.db
 Desktop.ini
 
-# misc
+# Private keys and credential containers
 *.pem
+*.key
+*.p12
+*.pfx
+id_rsa
+id_ecdsa
+id_ed25519
 
 # debug
 npm-debug.log*
@@ -34,8 +40,11 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files
-.env*.local
+# Environment secrets (keep public example templates)
+.env
+.env.*
+!.env.example
+!.env.*.example
 
 # vercel
 .vercel
@@ -52,6 +61,26 @@ next-env.d.ts
 !.claude/hooks/**
 !.claude/hooks.json
 
+# Local IDE state
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Agent runtime artifacts (keep shared agents/hooks/specs)
+.zcode/logs/
+.zcode/sessions/
+.zcode/cache/
+.zcode/state/
+.pi/sessions/
+.pi/cache/
+.codex/sessions/
+.codex/log/
+
+# Local worktrees
+/.worktrees/
+/worktrees/
+
 # Playwright
 .playwright-mcp/
 
@@ -66,6 +95,21 @@ data/napcat.db-wal
 data/napcat.db-shm
 *.backup.*
 
+# Local databases and SQLite sidecars
+*.db
+*.db-wal
+*.db-shm
+*.db-journal
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+*.sqlite-journal
+*.sqlite3
+*.sqlite3-wal
+*.sqlite3-shm
+*.sqlite3-journal
+
+# Ignore rules do not untrack files or remove secrets from repository history.
 # Internal dev docs (not for GitHub)
 docs/dev/
 

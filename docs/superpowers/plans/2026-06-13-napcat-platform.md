@@ -52,10 +52,10 @@ Task 2: 类型定义
 
 - [ ] **Step 1: 初始化 Next.js 项目**
 
-在 `/Users/makabaka/code/napcatQQ` 目录下初始化（根目录即项目目录）：
+在 `/path/to/napcatQQ` 目录下初始化（根目录即项目目录）：
 
 ```bash
-cd /Users/makabaka/code/napcatQQ
+cd /path/to/napcatQQ
 npx create-next-app@latest . --typescript --tailwind --eslint --app --src-dir --import-alias "@/*" --use-npm --no-turbopack
 ```
 
@@ -80,7 +80,7 @@ npx shadcn@latest add button input card dialog tabs table badge toast label text
 ```json
 {
   "ws": {
-    "url": "ws://115.190.250.31:3001",
+    "url": "ws://192.0.2.1:3001",
     "reconnect": true,
     "reconnectInterval": 5000,
     "maxReconnectInterval": 30000
@@ -403,7 +403,7 @@ const CONFIG_PATH = join(process.cwd(), 'data', 'config.json')
 
 const DEFAULT_CONFIG: PlatformConfig = {
   ws: {
-    url: 'ws://115.190.250.31:3001',
+    url: 'ws://192.0.2.1:3001',
     reconnect: true,
     reconnectInterval: 5000,
     maxReconnectInterval: 30000,
@@ -1574,7 +1574,7 @@ export default function DashboardPage() {
     await fetch('/api/config', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ws: { url: connInfo ? undefined : 'ws://115.190.250.31:3001' } }),
+      body: JSON.stringify({ ws: { url: connInfo ? undefined : 'ws://192.0.2.1:3001' } }),
     })
     setTimeout(loadData, 1000)
   }

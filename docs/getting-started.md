@@ -18,8 +18,8 @@ npm --version   # 应显示 9.x.x 或更高
 
 | 信息 | 示例 | 说明 |
 |---|---|---|
-| WS 地址 | `ws://115.190.250.31:3001` | WebSocket 端口，用于接收事件 |
-| HTTP API 地址 | `http://115.190.250.31:3000` | HTTP 端口，用于发送请求 |
+| WS 地址 | `ws://192.0.2.1:3001` | WebSocket 端口，用于接收事件 |
+| HTTP API 地址 | `http://192.0.2.1:3000` | HTTP 端口，用于发送请求 |
 | Token | `your-token` | NapCat 认证 token |
 
 ## 安装步骤

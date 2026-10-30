@@ -7,14 +7,14 @@
 ```json
 {
   "ws": {
-    "url": "ws://115.190.250.31:3001",
+    "url": "ws://192.0.2.1:3001",
     "token": "your-ws-token",
     "reconnect": true,
     "reconnectInterval": 5000,
     "maxReconnectInterval": 30000
   },
   "api": {
-    "url": "http://115.190.250.31:3000",
+    "url": "http://192.0.2.1:3000",
     "token": "your-api-token"
   },
   "tts": {
@@ -50,7 +50,7 @@
 
 | 字段 | 类型 | 默认值 | 说明 |
 |---|---|---|---|
-| `url` | string | `ws://115.190.250.31:3001` | NapCat WebSocket 地址 |
+| `url` | string | `ws://192.0.2.1:3001` | NapCat WebSocket 地址 |
 | `token` | string | - | WS 认证 token（access_token） |
 | `reconnect` | boolean | `true` | 是否自动重连 |
 | `reconnectInterval` | number | `5000` | 重连间隔（毫秒） |
@@ -62,7 +62,7 @@
 
 | 字段 | 类型 | 默认值 | 说明 |
 |---|---|---|---|
-| `url` | string | `http://115.190.250.31:3000` | NapCat HTTP API 地址 |
+| `url` | string | `http://192.0.2.1:3000` | NapCat HTTP API 地址 |
 | `token` | string | - | API 认证 token（Bearer） |
 
 **注意**：HTTP API 端口通常比 WS 端口小 1。

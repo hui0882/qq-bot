@@ -1,5 +1,7 @@
 # NapCat 管理平台
 
+> **维护暂停**：项目暂时暂停开发和维护，自动部署已暂停，暂无恢复时间承诺。以下技术文档保留供参考。
+
 基于 Next.js 15 的 QQ 机器人管理平台，通过 WebSocket 连接远程 NapCat 服务。
 
 ## 功能概览
@@ -168,19 +170,25 @@ napcatQQ/
 - **风格**：温柔、活泼、高冷、甜美等
 - **模式**：关闭（文本回显）/ 始终语音 / 自动（AI 判断，暂不可用）
 
-## 部署
+## 部署（已暂停）
 
-### GitHub Actions 自动部署
+### GitHub Actions 自动部署（已停用）
 
-Push 到 `main` 分支自动触发部署：
+Deploy workflow 已从 `.github/workflows/deploy.yml` 移至 `.github/disabled-workflows/deploy.yml.disabled` 保存，不会被 GitHub Actions 识别运行。在此变更应用到 `main` 后，推送到 `main` 和原 Deploy 的手动触发入口均不再部署；仅更新其他分支不会停用仍存在于 `main` 的 workflow。
+
+本次仅停用仓库自定义部署 workflow，不代表 GitHub Actions 全局开关或其他 GitHub 自动化已关闭。
+
+以下为恢复后的技术说明，当前不生效：
 
 1. SSH 登录服务器
 2. 拉取最新代码
 3. 安装依赖
-4. 构建项目
-5. PM2 重启服务
+4. 运行单元测试并构建项目
+5. PM2 启动或重启服务
 
-需要在 GitHub Secrets 中配置：
+恢复前须明确确认恢复维护，核对部署目标、配置和 GitHub Secrets，再将 `.github/disabled-workflows/deploy.yml.disabled` 移回 `.github/workflows/deploy.yml` 重新启用。恢复后，推送到 `main`（包括恢复 workflow 的提交）或手动触发可能立即部署，请先完成安全检查。
+
+恢复时需要核对的 GitHub Secrets：
 
 | Secret | 说明 |
 |---|---|
@@ -191,7 +199,9 @@ Push 到 `main` 分支自动触发部署：
 | `DEPLOY_PATH` | 项目路径 |
 | `CONFIG_JSON` | 配置文件内容 |
 
-### 手动部署
+### 手动部署（仅保留技术参考）
+
+当前维护暂停，不执行部署。以下命令保留供未来确认恢复维护、检查配置后参考，不受 workflow 停用机制控制。
 
 ```bash
 # 服务器上

@@ -19,7 +19,7 @@
 #   hooks.events.PreToolUse 的 command 中使用 ${ZCODE_PROJECT_DIR} 指向项目根，
 #   该变量是 ZCode 支持的模板变量（在 hook 命令中展开并注入为环境变量）。
 #   若运行环境不支持该变量，可改用绝对路径：
-#     bash /Users/makabaka/code/napcatQQ/.zcode/hooks/agent-guard.sh
+#     bash /path/to/napcatQQ/.zcode/hooks/agent-guard.sh
 # =============================================================================
 
 set -u

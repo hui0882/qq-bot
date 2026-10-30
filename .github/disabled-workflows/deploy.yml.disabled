@@ -1,3 +1,5 @@
+# 已暂停：本文件位于有效 workflow 目录之外，不会由 GitHub Actions 执行。
+# 恢复前请确认维护意愿、部署目标及 Secrets，再移回 .github/workflows/deploy.yml。
 name: Deploy
 
 on:
